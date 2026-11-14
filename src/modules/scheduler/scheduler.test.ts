@@ -116,7 +116,7 @@ describe('Scheduler Module - UI Components', () => {
       matchedAt: Date.now(),
       status: 'matched',
       sharedHobbies: ['bouldering', 'pour-over coffee'],
-      mutualIntent: 'co-founder',
+      mutualIntents: ['co-founder'],
     });
 
     const { getByText, getByRole, queryByRole } = render(

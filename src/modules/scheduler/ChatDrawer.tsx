@@ -106,12 +106,15 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, partner
   }
 
   const send = (text: string) => {
-    if (!matchId) return;
-    const sent = Repository.sendMessage(matchId, viewer, text, partner);
+    // The thread id is resolved in an effect after first paint; if someone sends before it
+    // lands, resolve it here instead of silently dropping the message.
+    const id = matchId ?? Repository.getOrCreateMatch(viewer, partner).id;
+    if (!matchId) setMatchId(id);
+    const sent = Repository.sendMessage(id, viewer, text, partner);
     if (!sent) return;
     setDraft('');
     setNow(Date.now());
-    reload(matchId);
+    reload(id);
   };
 
   return (

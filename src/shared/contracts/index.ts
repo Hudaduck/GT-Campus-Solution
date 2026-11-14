@@ -1,6 +1,11 @@
 export type UserRole = 'student' | 'alumni';
 export type VerificationMethod = 'gatech_sso' | 'domain' | 'linkedin' | 'peer_vouch';
-export type MeetupIntent = 'casual' | 'mentorship' | 'co-founder' | 'study' | 'roommate' | 'all';
+// What someone is looking for. Mentorship is directional: 'find-mentor' pairs with
+// 'give-mentorship'; every other intent pairs with itself. See src/shared/intents.ts.
+export type MeetupIntent = 'casual' | 'find-mentor' | 'give-mentorship' | 'co-founder' | 'study' | 'roommate';
+
+// Pre-multi-intent single value, still found in older saved profiles (migrated on read)
+export type LegacyMeetupIntent = 'casual' | 'mentorship' | 'co-founder' | 'study' | 'roommate' | 'all';
 
 export interface WorkExperience {
   company: string;
@@ -25,7 +30,7 @@ export interface UserProfile {
   workHistory?: WorkExperience[];
   targetCompanies?: string[];
   targetRoles?: string[];
-  intent: MeetupIntent;
+  intents: MeetupIntent[]; // up to MAX_INTENTS; empty = open to anything
   hobbies: string[];
   isOpenToMeet: boolean;
   openToMeetExpiresAt?: number; // timestamp in ms (TTL)
@@ -53,6 +58,7 @@ export interface SwipeCandidate extends UserProfile {
   targetRoles: string[];
   sharedHobbies: string[];
   careerBadges: CareerOverlapBadge[];
+  mutualIntents: MeetupIntent[]; // viewer intents this person complements
   overlapScore: number;
 }
 
@@ -93,7 +99,7 @@ export interface MatchItem {
   matchedAt: number;
   status: 'matched' | 'scheduled' | 'dismissed';
   sharedHobbies: string[];
-  mutualIntent: MeetupIntent;
+  mutualIntents: MeetupIntent[]; // only intents that genuinely line up (may be empty)
 }
 
 export type MeetingFormat = 'in-person' | 'online';

@@ -178,6 +178,28 @@ describe('LinkedInImportModal UI', () => {
     expect(within(section).getByTestId('event-card-event_midtown_sourdough_swap')).toBeDefined();
   });
 
+  it('lets you pick intents in review; switching Student/Alum never changes them', () => {
+    renderWithMap();
+    fireEvent.click(screen.getByTestId('linkedin-demo-preset'));
+
+    const picker = screen.getByTestId('linkedin-intents');
+    // No guess from LinkedIn: starts open to anything
+    expect(within(picker).getByTestId('intent-btn-open').getAttribute('aria-pressed')).toBe('true');
+
+    // An alum can look for a mentor too
+    fireEvent.click(screen.getByRole('button', { name: 'Alum' }));
+    fireEvent.click(within(picker).getByTestId('intent-btn-find-mentor'));
+    fireEvent.click(screen.getByRole('button', { name: 'Student' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Alum' }));
+    expect(within(picker).getByTestId('intent-btn-find-mentor').getAttribute('aria-pressed')).toBe('true');
+    expect(within(picker).getByTestId('intent-btn-give-mentorship').getAttribute('aria-pressed')).toBe('false');
+
+    fireEvent.click(screen.getByTestId('linkedin-launch'));
+    const user = Repository.getCurrentUser();
+    expect(user.role).toBe('alumni');
+    expect(user.intents).toEqual(['find-mentor']);
+  });
+
   it('shows a validation error for a non-LinkedIn URL', () => {
     renderWithMap();
     fireEvent.change(screen.getByTestId('linkedin-url-input'), { target: { value: 'not a url' } });

@@ -10,7 +10,7 @@ describe('SwipeRadarView Component', () => {
   });
 
   it('renders student & alumni candidate card with fuzzy neighborhood badge and GT context', () => {
-    const { getByText, getAllByText } = render(
+    const { getByText, getAllByText, getByTestId } = render(
       React.createElement(SwipeRadarView, {})
     );
 
@@ -24,8 +24,12 @@ describe('SwipeRadarView Component', () => {
     expect(getByText('Midtown • Tech Square')).toBeDefined();
     expect(getByText(/Within 0.4 mi/i)).toBeDefined();
 
-    // Intent pill
-    expect(getAllByText('co-founder').length).toBeGreaterThanOrEqual(1);
+    // Intent badges use catalog labels; both of Alex's intents complement Sarah's (mentor + co-founder)
+    const intentBadges = [...getByTestId('candidate-intents').querySelectorAll('span')];
+    expect(intentBadges.map((b) => b.textContent)).toEqual(['Co-Founder', 'Seeking Mentor']);
+    expect(intentBadges.every((b) => b.hasAttribute('data-mutual'))).toBe(true);
+    expect(getAllByText('Co-Founder').length).toBeGreaterThanOrEqual(1);
+    expect(getByTestId('mutual-intent-reason').textContent).toContain('Alex is looking for a mentor, and you mentor');
 
     // Shared hobby chips (both Sarah & Alex share 'Pour-Over Coffee'), capitalized and highlighted
     expect(getByText('Pour-Over Coffee').closest('[data-shared]')).not.toBeNull();
@@ -56,9 +60,8 @@ describe('SwipeRadarView Component', () => {
     expect(badges.some((t) => t?.includes('Works at Stripe'))).toBe(true);
     expect(getAllByTestId('targeting-pill')[0].textContent).toMatch(/Targeting: .+ @ .+/);
 
-    // Skip ahead to Elena: currently at Anthropic, previously at Google Brain
-    fireEvent.click(getByTitle('Pass'));
-    await findByText('Marcus Vance');
+    // "For You" skips Marcus (another mentee, no shared intent), so Elena (co-founder) is next:
+    // currently at Anthropic, previously at Google Brain
     fireEvent.click(getByTitle('Pass'));
     await findByText('Elena Rostova');
     const elenaBadges = getAllByTestId('career-overlap-badge').map((b) => b.textContent);
@@ -211,5 +214,31 @@ describe('SwipeRadarView Component', () => {
     const { container, getByRole } = render(React.createElement(SwipeRadarView, {}));
     fireEvent.click(getByRole('button', { name: /^(Change|Go Live)$/ }));
     expect(container.ownerDocument.body.textContent).not.toMatch(/\bTTL\b/);
+  });
+
+  it('defaults to "For You" (intent-compatible people) and can widen to Everyone', () => {
+    Repository.setCurrentUser(DEMO_STUDENT_USER); // wants a co-founder + a mentor
+    const { getByTestId, queryByText, getByText } = render(React.createElement(SwipeRadarView, {}));
+
+    expect(getByTestId('intent-filter-for-you').getAttribute('aria-pressed')).toBe('true');
+    expect(getByText(/Profile 1 of/).textContent).not.toContain('of 0');
+    // Marcus (casual + find-mentor) has nothing that complements this viewer
+    expect(queryByText('Marcus Vance')).toBeNull();
+
+    fireEvent.click(getByTestId('intent-filter-all'));
+    // Everyone: compatible people stay first, the rest follow
+    expect(getByText('Sarah Jenkins')).toBeDefined();
+    const total = Number(getByText(/Profile 1 of/).textContent!.match(/of (\d+)/)![1]);
+    expect(total).toBeGreaterThan(5);
+  });
+
+  it('match modal only claims intents that genuinely line up', () => {
+    const { getByTitle, getByTestId } = render(React.createElement(SwipeRadarView, {}));
+    fireEvent.click(getByTitle('Connect & Meet')); // Sarah (mentor + co-founder) x Alex (co-founder + mentee)
+    const lines = getByTestId('match-mutual-intents').textContent!;
+    expect(lines).toContain('Alex is looking for a mentor, and you mentor');
+    expect(lines).toContain('You both want co-founders');
+    const saved = Repository.getMatches()[0];
+    expect(saved.mutualIntents).toEqual(['give-mentorship', 'co-founder']);
   });
 });

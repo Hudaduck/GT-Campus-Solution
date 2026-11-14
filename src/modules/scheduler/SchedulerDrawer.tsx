@@ -10,6 +10,7 @@ import {
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { Repository, MIDPOINT_COFFEE_SPOTS, sanitizeMeetingLink } from '../../shared/data/repository';
 import { generateIcsFile, generateGoogleCalendarUrl, downloadIcsFile } from './calendarUtils';
+import { intentLabels } from '../../shared/intents';
 
 export const ONLINE_PLATFORMS: OnlinePlatform[] = ['Google Meet', 'Zoom', 'Microsoft Teams', 'Phone Call'];
 
@@ -156,7 +157,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
     const meetupTitle = `ThirdPlace ${kind}: ${currentUser.name} & ${partner.name}`;
     const meetupDescription = `Georgia Tech 1-on-1 ${isOnline ? `${platform} meetup` : isCustomSpot ? 'In-Person Meetup' : 'Coffee Meetup'}.${
       meetingLink ? `\nJoin: ${meetingLink}` : ''
-    }\nShared Hobbies: ${partner.hobbies.join(', ')}\nIntent: ${partner.intent}`;
+    }\nShared Hobbies: ${partner.hobbies.join(', ')}\nLooking for: ${intentLabels(partner.intents)}`;
 
     const icsContent = generateIcsFile({
       title: meetupTitle,

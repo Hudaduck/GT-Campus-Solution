@@ -4,23 +4,16 @@ import { useAuth } from './AuthContext';
 import { useBrand } from '../../shared/config/brandConfig';
 import { POPULAR_HOBBIES, formatHobby } from '../../shared/data/repository';
 import { UserRole, MeetupIntent } from '../../shared/contracts';
+import { IntentPicker } from '../../shared/ui/IntentPicker';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { LinkedInImportButton } from './LinkedInImportModal';
-import { X, GraduationCap, Briefcase, Check, ShieldCheck, Sparkles, Plus, AlertCircle, Coffee, Handshake, Rocket, BookOpen, Home, LucideIcon } from 'lucide-react';
+import { X, GraduationCap, Briefcase, Check, ShieldCheck, Sparkles, Plus, AlertCircle } from 'lucide-react';
 
 export interface OnboardingModalProps {
   isOpen?: boolean;
   onClose?: () => void;
 }
 
-const INTENT_OPTIONS: { id: MeetupIntent; label: string; icon: LucideIcon; desc: string }[] = [
-  { id: 'casual', label: 'Casual & Coffee', icon: Coffee, desc: 'Grab pour-overs and explore campus & Midtown' },
-  { id: 'mentorship', label: 'Mentorship', icon: Handshake, desc: 'Career growth, resume reviews & industry insights' },
-  { id: 'co-founder', label: 'Co-Founders', icon: Rocket, desc: 'Build startups, pitch hackathon projects & hack' },
-  { id: 'study', label: 'Study Sprints', icon: BookOpen, desc: 'CULC whiteboard cramming & finals prep' },
-  { id: 'roommate', label: 'Housing / Roommates', icon: Home, desc: 'Find campus or post-grad housemates' },
-  { id: 'all', label: 'All / Open-Ended', icon: Sparkles, desc: 'Open to any serendipitous Yellow Jacket connection' },
-];
 
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   isOpen: propsIsOpen,
@@ -56,7 +49,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   const [targetRolesInput, setTargetRolesInput] = useState<string>(
     user.targetRoles?.join(', ') || 'AI/ML Engineer, Product Manager'
   );
-  const [intent, setIntent] = useState<MeetupIntent>(user.intent || 'co-founder');
+  const [intents, setIntents] = useState<MeetupIntent[]>(user.intents ?? []);
   const [selectedHobbies, setSelectedHobbies] = useState<string[]>(
     user.hobbies && user.hobbies.length > 0 ? [...user.hobbies] : ['AI Startups', 'Bouldering', 'Pour-Over Coffee']
   );
@@ -81,7 +74,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       setWorkRole(user.workHistory?.[0]?.role || '');
       setTargetCompaniesInput(user.targetCompanies?.join(', ') || 'Stripe, Anthropic, Google');
       setTargetRolesInput(user.targetRoles?.join(', ') || 'AI/ML Engineer, Product Manager');
-      setIntent(user.intent || 'co-founder');
+      setIntents(user.intents ?? []);
       setSelectedHobbies(
         user.hobbies && user.hobbies.length > 0 ? [...user.hobbies] : ['AI Startups', 'Bouldering', 'Pour-Over Coffee']
       );
@@ -210,7 +203,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       targetCompanies: parsedCompanies.length > 0 ? parsedCompanies : user.targetCompanies,
       targetRoles: parsedRoles.length > 0 ? parsedRoles : user.targetRoles,
       workHistory,
-      intent,
+      intents,
       hobbies: selectedHobbies,
       email: emailInput.trim() || user.email,
       linkedinUrl: linkedinInput.trim() || user.linkedinUrl,
@@ -320,7 +313,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-2 font-bold text-tp-ink">
                     <Briefcase className="w-4 h-4 text-tp-accent" />
-                    <span>Alumni / Mentor</span>
+                    <span>Alumni</span>
                   </div>
                   {role === 'alumni' && <Check className="w-4 h-4 text-tp-accent" />}
                 </div>
@@ -449,32 +442,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             </div>
           </div>
 
-          {/* 4. Meetup Intent */}
+          {/* 4. Meetup Intents (multi-select) */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-tp-accent mb-2">
-              4. Primary Meetup Intent
+              4. What are you looking for?
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {INTENT_OPTIONS.map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  data-testid={`intent-btn-${opt.id}`}
-                  onClick={() => setIntent(opt.id)}
-                  className={`p-2.5 rounded-xl border text-left flex flex-col gap-1 transition-all ${
-                    intent === opt.id
-                      ? 'border-[#B39051] bg-[#051E39]/90 tp-on-navy text-tp-ink ring-1 ring-[#B39051]'
-                      : 'border-tp-line bg-tp-canvas/60 text-tp-muted hover:border-[#B39051]/60 hover:text-tp-ink'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 font-semibold text-xs">
-                    <opt.icon className="w-4 h-4 shrink-0" />
-                    <span className="truncate">{opt.label}</span>
-                  </div>
-                  <span className="text-[11px] text-tp-subtle line-clamp-1">{opt.desc}</span>
-                </button>
-              ))}
-            </div>
+            <IntentPicker value={intents} onChange={setIntents} />
           </div>
 
           {/* 5. 3-5 Hobbies */}

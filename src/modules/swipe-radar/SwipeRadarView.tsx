@@ -7,6 +7,13 @@ import {
   isSamePerson,
 } from '../../shared/data/repository';
 import {
+  INTENT_CATALOG,
+  INTENT_ORDER,
+  describeMutualIntent,
+  getMutualIntents,
+  isIntentCompatible,
+} from '../../shared/intents';
+import {
   BadgeCheck,
   ChevronUp,
   Briefcase,
@@ -34,13 +41,9 @@ interface SwipeRadarViewProps {
   layout?: LayoutMode;
 }
 
-const INTENT_LABELS: Record<string, string> = {
-  all: 'All Intents',
-  'co-founder': 'Co-Founder',
-  mentorship: 'Mentorship',
-  study: 'Study',
-  casual: 'Casual',
-};
+// 'for-you' = only people whose intents line up with mine (default); 'all' = everyone;
+// an intent id = people who have that intent (chip labels come from INTENT_CATALOG.filterLabel)
+type IntentFilter = 'for-you' | 'all' | MeetupIntent;
 
 const OPEN_TO_MEET_OPTIONS = [
   { label: '2 Hours', hours: 2, hint: 'Expires in 2h' },
@@ -57,7 +60,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
   const [currentUser, setCurrentUser] = useState<UserProfile>(Repository.getCurrentUser());
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
-  const [intentFilter, setIntentFilter] = useState<MeetupIntent>('all');
+  const [intentFilter, setIntentFilter] = useState<IntentFilter>('for-you');
   const [roleFilter, setRoleFilter] = useState<'all' | 'student' | 'alumni'>('all');
   const [activeDeck, setActiveDeck] = useState<'radar' | 'reconnect'>('radar');
 
@@ -95,13 +98,19 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
 
   // Filter profiles and decorate them with viewer-relative hobby & career overlap
   const filteredProfiles: SwipeCandidate[] = useMemo(() => {
-    return profiles
+    const candidates = profiles
       .filter((p) => {
-        const matchesIntent = intentFilter === 'all' || p.intent === intentFilter || p.intent === 'all';
+        const matchesIntent =
+          intentFilter === 'all' ||
+          (intentFilter === 'for-you' ? isIntentCompatible(currentUser, p) : p.intents.includes(intentFilter));
         const matchesRole = roleFilter === 'all' || p.role === roleFilter;
         return matchesIntent && matchesRole;
       })
       .map((p) => buildSwipeCandidate(currentUser, p));
+    // Outside "For You", still surface people whose intents line up first (stable sort)
+    return intentFilter === 'for-you'
+      ? candidates
+      : [...candidates].sort((a, b) => Number(isIntentCompatible(currentUser, b)) - Number(isIntentCompatible(currentUser, a)));
   }, [profiles, intentFilter, roleFilter, currentUser]);
 
   // Current candidate card
@@ -136,7 +145,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
       matchedAt: Date.now(),
       status: 'matched',
       sharedHobbies: candidateShared,
-      mutualIntent: candidate.intent,
+      mutualIntents: getMutualIntents(currentUser, candidate),
     };
     Repository.saveMatch(newMatch);
 
@@ -216,6 +225,15 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
   const cardCompanyBadges = companyBadges.slice(0, 2);
   const cardTargetingBadges = targetingBadges.slice(0, Math.max(0, 2 - cardCompanyBadges.length));
   const hasCardOverlap = cardHobbies.length + cardCompanyBadges.length + cardTargetingBadges.length > 0;
+
+  // Candidate's own intents (max 2 on the card); the ones that complement mine come first
+  const complementOfMine = new Set((currentCandidate?.mutualIntents ?? []).map((i) => INTENT_CATALOG[i].complement));
+  const cardIntents = (currentCandidate?.intents ?? [])
+    .map((id) => ({ id, mutual: complementOfMine.has(id) }))
+    .sort((a, b) => Number(b.mutual) - Number(a.mutual))
+    .slice(0, 2);
+
+  const matchMutualIntents = matchedProfile ? getMutualIntents(currentUser, matchedProfile) : [];
 
   const chip = (active: boolean) =>
     `shrink-0 px-2.5 min-h-[32px] rounded-full text-[11px] whitespace-nowrap transition ${
@@ -313,16 +331,18 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
               </button>
             ))}
             <span aria-hidden="true" className="shrink-0 w-px h-5 bg-[#B39051]/35 mx-0.5" />
-            {(['all', 'co-founder', 'mentorship', 'study', 'casual'] as MeetupIntent[]).map((intent) => (
+            {(['for-you', 'all', ...INTENT_ORDER] as IntentFilter[]).map((filter) => (
               <button
-                key={intent}
+                key={filter}
+                data-testid={`intent-filter-${filter}`}
+                aria-pressed={intentFilter === filter}
                 onClick={() => {
-                  setIntentFilter(intent);
+                  setIntentFilter(filter);
                   setCurrentIndex(0);
                 }}
-                className={chip(intentFilter === intent)}
+                className={chip(intentFilter === filter)}
               >
-                {INTENT_LABELS[intent]}
+                {filter === 'for-you' ? 'For You' : filter === 'all' ? 'Everyone' : INTENT_CATALOG[filter].filterLabel}
               </button>
             ))}
           </div>
@@ -403,14 +423,32 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                           <p className="text-[11px] text-tp-muted drop-shadow truncate">{currentCandidate.companyOrLab}</p>
                         )}
                       </div>
-                      <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-[#B39051] text-[#051E39] shrink-0 uppercase tracking-wide">
-                        {currentCandidate.intent}
-                      </span>
+                      <div className="flex flex-col items-end gap-1 shrink-0" data-testid="candidate-intents">
+                        {cardIntents.map(({ id, mutual }) => (
+                          <span
+                            key={id}
+                            data-mutual={mutual || undefined}
+                            className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-wide ${
+                              mutual
+                                ? 'bg-[#B39051] text-[#051E39]'
+                                : 'bg-[#051E39]/70 text-tp-ink border border-[#B39051]/50'
+                            }`}
+                          >
+                            {INTENT_CATALOG[id].badge}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
                   {/* Overlap at a glance */}
                   <div className="shrink-0 px-3 pt-2.5 pb-1 space-y-1.5">
+                    {currentCandidate.mutualIntents.length > 0 && (
+                      <p data-testid="mutual-intent-reason" className="text-[11px] font-semibold text-tp-accent truncate">
+                        <Sparkles className="inline w-3 h-3 mr-1 -mt-0.5" />
+                        {describeMutualIntent(currentCandidate.mutualIntents[0], currentCandidate.name.split(' ')[0])}
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-1.5 max-h-[60px] overflow-hidden" data-testid="swipe-overlap-badges">
                       {cardCompanyBadges.map((badge) => (
                         <span
@@ -845,9 +883,17 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
               <h3 className="text-xl font-black text-tp-ink tracking-tight">
                 It's a Mutual Match!
               </h3>
-              <p className="text-xs text-tp-muted mt-1">
-                You and {matchedProfile.name} both want to connect on {matchedProfile.intent}!
-              </p>
+              {matchMutualIntents.length > 0 ? (
+                <ul data-testid="match-mutual-intents" className="text-xs text-tp-muted mt-1 space-y-0.5">
+                  {matchMutualIntents.map((i) => (
+                    <li key={i}>{describeMutualIntent(i, matchedProfile.name.split(' ')[0])}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-tp-muted mt-1">
+                  You and {matchedProfile.name} can now message each other.
+                </p>
+              )}
             </div>
 
             {/* Avatars side-by-side */}

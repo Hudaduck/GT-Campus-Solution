@@ -32,7 +32,7 @@ describe('Multi-factor ranking: hobbies + attendee network overlap', () => {
     ...DEMO_STUDENT_USER,
     id: 'ranking_viewer',
     email: 'ranking.viewer@gatech.edu',
-    intent: 'study',
+    intents: ['study'],
     hobbies: ['hiking'],
     targetCompanies: [],
     targetRoles: [],

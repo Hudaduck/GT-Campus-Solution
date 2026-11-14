@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { WorkExperience, MeetupIntent } from '../../shared/contracts';
 import { POPULAR_HOBBIES } from '../../shared/data/repository';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
+import { IntentPicker } from '../../shared/ui/IntentPicker';
 import { LinkedInImportButton } from './LinkedInImportModal';
 
 export interface MyProfileDrawerProps {
@@ -19,7 +20,7 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
   const [gradYear, setGradYear] = useState(user.gradYear || 2026);
   const [companyOrLab, setCompanyOrLab] = useState(user.companyOrLab || '');
   const [bio, setBio] = useState(user.bio || '');
-  const [intent, setIntent] = useState<MeetupIntent>(user.intent || 'co-founder');
+  const [intents, setIntents] = useState<MeetupIntent[]>(user.intents ?? []);
   const [hobbies, setHobbies] = useState<string[]>(user.hobbies || []);
 
   // Career fields
@@ -42,7 +43,7 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
       setGradYear(user.gradYear || 2026);
       setCompanyOrLab(user.companyOrLab || '');
       setBio(user.bio || '');
-      setIntent(user.intent || 'co-founder');
+      setIntents(user.intents ?? []);
       setHobbies(user.hobbies || []);
       setWorkHistory(user.workHistory || []);
       setTargetCompanies(user.targetCompanies || []);
@@ -114,7 +115,7 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
       gradYear: Number(gradYear) || user.gradYear,
       companyOrLab: companyOrLab.trim() || undefined,
       bio: bio.trim() || user.bio,
-      intent,
+      intents,
       hobbies,
       workHistory,
       targetCompanies,
@@ -415,7 +416,16 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
             </div>
           </div>
 
-          {/* Section 4: Hobbies */}
+          {/* Section 4: What you're looking for */}
+          <div data-testid="profile-intents" className="space-y-3 pt-3 border-t border-tp-line">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-tp-accent flex items-center gap-1.5">
+              <Target className="w-3.5 h-3.5 text-tp-accent" />
+              <span>Looking For</span>
+            </h3>
+            <IntentPicker value={intents} onChange={setIntents} compact />
+          </div>
+
+          {/* Section 5: Hobbies */}
           <div className="space-y-3 pt-3 border-t border-tp-line">
             <h3 className="text-xs font-bold uppercase tracking-wider text-tp-accent flex items-center justify-between">
               <span className="flex items-center gap-1.5">

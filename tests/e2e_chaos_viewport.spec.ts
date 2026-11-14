@@ -162,6 +162,7 @@ test.describe('Suite 3: E2E Core User Flows', () => {
     const chat = page.locator('[data-testid="chat-drawer"]');
     await chat.getByLabel('Message', { exact: true }).fill('Want to meet up this week?');
     await chat.getByLabel('Message', { exact: true }).press('Enter');
+    await expect(chat.locator('[data-testid="chat-message-mine"]')).toHaveCount(1);
     await expect(chat.locator('[data-testid="chat-message-theirs"]')).toHaveCount(1, { timeout: 5000 });
     await chat.locator('[data-testid="plan-in-person"]').click();
 
