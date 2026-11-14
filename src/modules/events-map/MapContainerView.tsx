@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { getCategoryIcon } from '../../shared/ui/categoryIcons';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { iconToSvgMarkup } from '../../shared/ui/iconMarkup';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -30,12 +30,8 @@ export function createGTMarkerIcon(event: ScoredEventItem): L.DivIcon {
     : 'box-shadow: 0 3px 6px rgba(0,0,0,0.4);';
 
   const CategoryIcon = getCategoryIcon(event.category);
-  const categorySvg = renderToStaticMarkup(
-    React.createElement(CategoryIcon, { size: 18, color: '#B39051', strokeWidth: 2.25 })
-  );
-  const starSvg = renderToStaticMarkup(
-    React.createElement(Star, { size: 9, color: '#051E39', fill: '#051E39', strokeWidth: 2 })
-  );
+  const categorySvg = iconToSvgMarkup(CategoryIcon, { size: 18, color: '#B39051', strokeWidth: 2.25 });
+  const starSvg = iconToSvgMarkup(Star, { size: 9, color: '#051E39', fill: '#051E39', strokeWidth: 2 });
 
   const starBadge = isRec
     ? `<span style="position:absolute;top:-6px;right:-6px;background:#B39051;color:#051E39;border-radius:9999px;font-size:10px;font-weight:900;padding:2px 3px;display:flex;border:1.5px solid #051E39;box-shadow:0 1px 3px rgba(0,0,0,0.3);">${starSvg}</span>`
