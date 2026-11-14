@@ -1,19 +1,23 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Suite 3: E2E Core User Flows', () => {
+  let consoleErrors: string[] = [];
+
   test.beforeEach(async ({ page }) => {
-    // Collect console errors
+    // Collect unexpected console errors (simulated chaos errors are tagged [Fault Isolation])
+    consoleErrors = [];
     page.on('console', (msg) => {
-      if (msg.type() === 'error') {
-        // Ignore expected simulated chaos errors
-        if (!msg.text().includes('[Fault Isolation]')) {
-          console.error(`[Browser Console Error]: ${msg.text()}`);
-        }
+      if (msg.type() === 'error' && !msg.text().includes('[Fault Isolation]')) {
+        consoleErrors.push(msg.text());
       }
     });
 
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
+  });
+
+  test.afterEach(() => {
+    expect(consoleErrors, `Unexpected console errors:\n${consoleErrors.join('\n')}`).toEqual([]);
   });
 
   test('Flow 1: Header renders ThirdPlace brand and Georgia Tech tokens', async ({ page }) => {
@@ -47,10 +51,9 @@ test.describe('Suite 3: E2E Core User Flows', () => {
     await expect(page.locator('text=Fast Onboarding')).toBeVisible();
 
     // Toggle a hobby pill (e.g. bouldering)
-    const hobbyPill = page.locator('button', { hasText: /bouldering/i }).first();
-    if (await hobbyPill.isVisible()) {
-      await hobbyPill.click();
-    }
+    const hobbyPill = page.locator('[data-testid="onboarding-modal"] button', { hasText: /bouldering/i }).first();
+    await expect(hobbyPill).toBeVisible();
+    await hobbyPill.click();
 
     // Close modal
     const closeBtn = page.locator('[data-testid="close-onboarding-modal"]').first();
@@ -62,11 +65,7 @@ test.describe('Suite 3: E2E Core User Flows', () => {
     await page.locator('[data-testid="nav-tab-map"]').click();
 
     // Switch to list view
-    const listToggle = page.locator('[data-testid="view-toggle-list"]').first();
-    if (await listToggle.isVisible()) {
-      await listToggle.click();
-    }
-    await page.waitForTimeout(300);
+    await page.locator('[data-testid="view-toggle-list"]').first().click();
 
     // Find and click first event card
     const eventCard = page.locator('[data-testid^="event-card-"]').first();
@@ -83,10 +82,8 @@ test.describe('Suite 3: E2E Core User Flows', () => {
     await rsvpBtn.click();
 
     // Close detail drawer
-    const closeDrawer = page.locator('[data-testid="close-drawer-button"]').first();
-    if (await closeDrawer.isVisible()) {
-      await closeDrawer.click();
-    }
+    await page.locator('[data-testid="close-drawer-button"]').first().click();
+    await expect(drawer).not.toBeVisible();
 
     // Open Host Event Drawer
     const hostBtn = page.locator('[data-testid="open-host-event-button"]').first();
@@ -107,36 +104,67 @@ test.describe('Suite 3: E2E Core User Flows', () => {
 
     // Verify drawer closed and event was created
     await expect(page.locator('text=Host a Campus Pop-Up')).not.toBeVisible();
+    await expect(page.locator('text=Midtown Hackathon & Coffee').first()).toBeVisible();
   });
 
-  test('Flow 5: 1-on-1 Swipe, Mutual Match & Midpoint Coffee Scheduler', async ({ page }) => {
-    // Navigate to Swipe
+  test('Flow 5: Mutual Match -> message first -> schedule an online meetup', async ({ page }) => {
     await page.locator('[data-testid="nav-tab-swipe"]').click();
-
-    // Verify candidate card renders
     await expect(page.locator('text=Open to Meet').first()).toBeVisible();
 
-    // Click Connect (Swipe Right)
-    const connectBtn = page.locator('button[aria-label="Connect (Like)"], button:has-text("Connect")').first();
-    await connectBtn.click();
+    // Swipe right -> mutual match
+    await page.locator('button[title="Connect & Meet"]').first().click();
+    await expect(page.locator("text=It's a Mutual Match!")).toBeVisible();
+    await page.locator('button', { hasText: 'Send a Message' }).click();
 
-    // Mutual Match modal or next card
-    const scheduleMatchBtn = page.locator('button:has-text("Schedule 1-on-1 Meetup")');
-    if (await scheduleMatchBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await scheduleMatchBtn.click();
+    // Chat: send a message, see the typing indicator resolve into the partner's reply
+    const chat = page.locator('[data-testid="chat-drawer"]');
+    await expect(chat).toBeVisible();
+    await chat.getByLabel('Message', { exact: true }).fill('Hi! Want to chat about your work sometime?');
+    await chat.getByLabel('Message', { exact: true }).press('Enter');
+    await expect(chat.locator('[data-testid="chat-message-mine"]')).toHaveCount(1);
+    await expect(chat.locator('[data-testid="chat-message-theirs"]')).toHaveCount(1, { timeout: 5000 });
+    await expect(chat.locator('[data-testid="chat-message-theirs"]')).toContainText('video call');
 
-      // Scheduler drawer opens
-      await expect(page.locator('text=Lock In 1-on-1 Meetup')).toBeVisible();
-      await expect(page.locator('text=Dancing Goats Coffee Bar')).toBeVisible();
+    // Decide to meet online
+    await chat.locator('[data-testid="plan-online"]').click();
+    await expect(page.locator('[data-testid="format-online"]')).toHaveAttribute('aria-checked', 'true');
+    await page.locator('button', { hasText: 'Zoom' }).click();
+    await page.getByLabel(/Meeting link/).fill('zoom.us/j/123456789');
+    const download = page.waitForEvent('download');
+    await page.locator('button:has-text("Confirm & Download .ics Meetup")').click();
+    expect((await download).suggestedFilename()).toMatch(/\.ics$/);
+    await expect(page.locator('text=Meetup Confirmed!')).toBeVisible();
 
-      // Confirm meetup
-      const confirmBtn = page.locator('button:has-text("Confirm & Download .ics Meetup")');
-      await confirmBtn.click();
-    }
+    // Back in the chat, the plan is recorded in the thread
+    await page.locator('button', { hasText: 'Back to ThirdPlace' }).click();
+    await expect(chat).toContainText('video call on Zoom');
+    await page.getByLabel('Close chat').click();
 
-    // Navigate to My Plans
+    // My Plans lists it as an online meetup with a join link
     await page.locator('[data-testid="nav-tab-plans"]').click();
     await expect(page.locator('text=My Plans & Connections')).toBeVisible();
+    await expect(page.locator('text=Online').first()).toBeVisible();
+    await expect(page.locator('a', { hasText: 'Join meeting' })).toHaveAttribute('href', 'https://zoom.us/j/123456789');
+  });
+
+  test('Flow 6: Mutual Match -> schedule an in-person midpoint coffee directly', async ({ page }) => {
+    await page.locator('[data-testid="nav-tab-swipe"]').click();
+    await page.locator('button[title="Connect & Meet"]').first().click();
+    await expect(page.locator("text=It's a Mutual Match!")).toBeVisible();
+    await page.locator('button', { hasText: 'Schedule a Meetup' }).click();
+
+    // In person is the default format
+    await expect(page.locator('[data-testid="format-in-person"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('text=Dancing Goats Coffee Bar')).toBeVisible();
+    const download = page.waitForEvent('download');
+    await page.locator('button:has-text("Confirm & Download .ics Meetup")').click();
+    await download;
+    await expect(page.locator('text=Meetup Confirmed!')).toBeVisible();
+    await page.locator('button', { hasText: 'Back to ThirdPlace' }).click();
+
+    await page.locator('[data-testid="nav-tab-plans"]').click();
+    await expect(page.locator('text=Dancing Goats Coffee Bar').first()).toBeVisible();
+    await expect(page.locator('text=In person').first()).toBeVisible();
   });
 });
 
@@ -148,8 +176,10 @@ test.describe('Suite 4: Fault-Isolation Chaos Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
 
-    // Ensure map tab is active
+    // Failed tiles auto-switch the map to the list fallback with a notice
     await page.locator('[data-testid="nav-tab-map"]').click();
+    await expect(page.locator('[data-testid="tile-error-banner"]')).toBeVisible();
+    await expect(page.locator('[data-testid^="event-card-"]').first()).toBeVisible();
 
     // Navigation should still work seamlessly
     await page.locator('[data-testid="nav-tab-swipe"]').click();
@@ -158,13 +188,10 @@ test.describe('Suite 4: Fault-Isolation Chaos Tests', () => {
     await page.locator('[data-testid="nav-tab-plans"]').click();
     await expect(page.locator('text=My Plans & Connections')).toBeVisible();
 
-    // Return to map - list view or fallback container is functional
+    // Return to map - the list fallback is functional
     await page.locator('[data-testid="nav-tab-map"]').click();
-    const listBtn = page.locator('button[title="List View"]').first();
-    if (await listBtn.isVisible()) {
-      await listBtn.click();
-      await expect(page.locator('text=Yellow Jacket AI Founders').first()).toBeVisible();
-    }
+    await page.locator('[data-testid="view-toggle-list"]').click();
+    await expect(page.locator('[data-testid^="event-card-"]').first()).toBeVisible();
   });
 
   test('Chaos 2: Corrupted JSON in localStorage -> ModuleErrorBoundary isolates fault with Reset Module', async ({ page }) => {
@@ -184,14 +211,13 @@ test.describe('Suite 4: Fault-Isolation Chaos Tests', () => {
 
     // Navigate to swipe: either handles gracefully via repository fallback or catches in ModuleErrorBoundary
     await page.locator('[data-testid="nav-tab-swipe"]').click();
-    const isErrorOrRecovered = await page.locator('text=Reset Module').or(page.locator('text=Open to Meet')).first().isVisible();
-    expect(isErrorOrRecovered).toBe(true);
+    await expect(page.locator('text=Reset Module').or(page.locator('text=Open to Meet')).first()).toBeVisible();
 
     // If Reset Module button appeared, clicking it recovers the module
     const resetBtn = page.locator('button:has-text("Reset Module")');
     if (await resetBtn.isVisible()) {
       await resetBtn.click();
-      await page.waitForTimeout(500);
+      await expect(page.locator('text=Open to Meet').first()).toBeVisible();
     }
   });
 });
@@ -207,7 +233,8 @@ test.describe('Suite 5: Viewport, Contrast & Console Audit', () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
+    await expect(page.locator('[data-testid="events-map-view"]')).toBeVisible();
+    await page.waitForLoadState('networkidle');
 
     // Check horizontal overflow
     const overflow = await page.evaluate(() => {
@@ -229,7 +256,8 @@ test.describe('Suite 5: Viewport, Contrast & Console Audit', () => {
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    await page.waitForLoadState('domcontentloaded');
+    await expect(page.locator('[data-testid="events-map-view"]')).toBeVisible();
+    await page.waitForLoadState('networkidle');
 
     // Check horizontal overflow
     const overflow = await page.evaluate(() => {

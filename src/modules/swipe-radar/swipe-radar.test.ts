@@ -109,7 +109,8 @@ describe('SwipeRadarView Component', () => {
 
     // Mutual Match Modal should appear
     expect(getByText("It's a Mutual Match!")).toBeDefined();
-    expect(getByText(/Schedule Midpoint Coffee/i)).toBeDefined();
+    expect(getByText(/Send a Message/i)).toBeDefined();
+    expect(getByText(/Schedule a Meetup/i)).toBeDefined();
 
     // Match should be saved in Repository
     const matches = Repository.getMatches();

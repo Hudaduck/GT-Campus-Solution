@@ -14,7 +14,7 @@ npm run build        # tsc && vite build
 npm run typecheck    # tsc --noEmit
 npm test             # vitest run (unit/component tests, happy-dom)
 npm run test:watch
-npm run test:e2e     # Playwright; starts/reuses the dev server via `npm.cmd run dev` (Windows)
+npm run test:e2e     # Playwright; starts its own Vite server on port 5180 (--strictPort; override with E2E_PORT)
 
 npx vitest run src/modules/auth/auth.test.ts      # single file
 npx vitest run -t "re-issues expired demo"        # single test by name
@@ -43,6 +43,8 @@ Vitest picks up `src/**/*.test.ts(x)` and `tests/**/*.test.ts`; Playwright only 
 **Time-relative seeds**: seed events are built relative to `Date.now()`. `Repository.getEvents()` filters out expired items (`expiresAt`), but built-in seed events are "rolling": when one expires it is re-issued with fresh times (`renewSeedEvents`), keeping its RSVPs. User-hosted events expire normally. Tests that depend on time use `vi.useFakeTimers({ toFake: ['Date'] })` + `vi.setSystemTime` (see `src/shared/rolling-seeds.test.ts`).
 
 **LinkedIn import** (`modules/auth/linkedinParser.ts` → `AuthContext.importLinkedInProfile` → `Repository.registerImportedProfile`): parses a LinkedIn URL or pasted text into a profile, then seeds the hobby-ecosystem profiles and events. This must be idempotent.
+
+**1-on-1 connections** (`modules/scheduler`): a match opens a `ChatDrawer` thread (`Repository.getMessages` / `sendMessage`, keyed by match id; `getOrCreateMatch` creates a match for Re-Connect contacts). There is no backend, so the partner's single reply is simulated: it is stored with a future `sentAt`, and the UI hides it behind a "typing…" indicator until that time passes. From the chat, `SchedulerDrawer` books either an in-person meetup (midpoint coffee spots) or an online one (`format: 'online'`, platform plus an optional link that must pass `sanitizeMeetingLink`), then posts the plan back into the thread.
 
 **Demo personas**: the alum `INITIAL_CURRENT_USER` and `DEMO_STUDENT_USER` have seed "twins" (same person, different id). Use `isSamePerson()` (id or email match), not id equality.
 

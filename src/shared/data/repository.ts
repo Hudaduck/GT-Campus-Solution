@@ -6,6 +6,7 @@ import {
   CoffeeSpotSuggestion,
   CareerOverlapBadge,
   SwipeCandidate,
+  ChatMessage,
 } from '../contracts';
 
 const STORAGE_KEYS = {
@@ -15,7 +16,29 @@ const STORAGE_KEYS = {
   MATCHES: 'thirdplace_matches_data',
   SWIPES: 'thirdplace_swipes_history',
   MEETUPS: 'thirdplace_meetups_data',
+  MESSAGES: 'thirdplace_messages_data',
 };
+
+// Simulated partner reply delay (no backend, so the matched person answers the opener once)
+export const DEMO_REPLY_DELAY_MS = 1800;
+
+export function buildDemoPartnerReply(partner: UserProfile, viewer: UserProfile): string {
+  const shared = partner.hobbies.find((h) => viewer.hobbies.some((v) => v.toLowerCase() === h.toLowerCase()));
+  const hook = shared ? `Always great to meet another ${shared} person. ` : '';
+  return `Hey ${viewer.name.split(' ')[0]}! Thanks for reaching out. ${hook}Happy to chat more. Would you rather grab coffee in person or hop on a quick video call?`;
+}
+
+// Only allow http(s) links so a pasted value can never become a javascript: href
+export function sanitizeMeetingLink(raw: string): string | undefined {
+  const value = raw.trim();
+  if (!value) return undefined;
+  try {
+    const url = new URL(/^[a-z]+:\/\//i.test(value) ? value : `https://${value}`);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export const POPULAR_HOBBIES = [
   'Bouldering',
@@ -1347,6 +1370,92 @@ export class Repository {
     }
   }
 
+  // Existing match between the viewer and a partner (either direction), if any
+  static findMatchWith(viewerId: string, partnerId: string): MatchItem | undefined {
+    return this.getMatches().find(
+      (m) =>
+        (m.user1Id === viewerId && m.user2Id === partnerId) || (m.user1Id === partnerId && m.user2Id === viewerId)
+    );
+  }
+
+  // Messaging needs a match id; Re-Connect contacts may not have one yet
+  static getOrCreateMatch(viewer: UserProfile, partner: UserProfile): MatchItem {
+    const existing = this.findMatchWith(viewer.id, partner.id);
+    if (existing) return existing;
+    const match: MatchItem = {
+      id: `match_${viewer.id}_${partner.id}`,
+      user1Id: viewer.id,
+      user2Id: partner.id,
+      partnerProfile: partner,
+      matchedAt: Date.now(),
+      status: 'matched',
+      sharedHobbies: getSharedHobbies(viewer, partner),
+      mutualIntent: partner.intent,
+    };
+    this.saveMatch(match);
+    return match;
+  }
+
+  private static readAllMessages(): ChatMessage[] {
+    if (!this.isSafeStorageAvailable()) return [];
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.MESSAGES) || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  // Thread for one match, oldest first. Includes pending (future `sentAt`) simulated replies.
+  static getMessages(matchId: string): ChatMessage[] {
+    return this.readAllMessages()
+      .filter((m) => m.matchId === matchId)
+      .sort((a, b) => a.sentAt - b.sentAt);
+  }
+
+  /**
+   * Appends a message. When the viewer sends their first message in a thread and a
+   * `replyFrom` partner is given, a simulated reply is queued DEMO_REPLY_DELAY_MS later.
+   */
+  static sendMessage(
+    matchId: string,
+    sender: UserProfile,
+    text: string,
+    replyFrom?: UserProfile
+  ): ChatMessage | null {
+    const body = text.trim();
+    if (!body) return null;
+    const all = this.readAllMessages();
+    const now = Date.now();
+    const message: ChatMessage = {
+      id: `msg_${now}_${Math.random().toString(36).slice(2, 8)}`,
+      matchId,
+      senderId: sender.id,
+      text: body,
+      sentAt: now,
+    };
+    const next = [...all, message];
+
+    const partnerHasSpoken = all.some((m) => m.matchId === matchId && m.senderId === replyFrom?.id);
+    if (replyFrom && !partnerHasSpoken) {
+      next.push({
+        id: `msg_${now}_reply`,
+        matchId,
+        senderId: replyFrom.id,
+        text: buildDemoPartnerReply(replyFrom, sender),
+        sentAt: now + DEMO_REPLY_DELAY_MS,
+      });
+    }
+
+    if (this.isSafeStorageAvailable()) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Error saving message:', e);
+      }
+    }
+    return message;
+  }
+
   /**
    * Launches an imported profile into the live ecosystem: makes it the current user,
    * registers it in the shared directory, and seeds the Volleyball / Baking profiles
@@ -1385,6 +1494,7 @@ export class Repository {
         localStorage.removeItem(STORAGE_KEYS.MATCHES);
         localStorage.removeItem(STORAGE_KEYS.SWIPES);
         localStorage.removeItem(STORAGE_KEYS.MEETUPS);
+        localStorage.removeItem(STORAGE_KEYS.MESSAGES);
         localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(INITIAL_EVENTS));
         localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(INITIAL_PROFILES));
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(INITIAL_CURRENT_USER));

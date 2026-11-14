@@ -96,6 +96,19 @@ export interface MatchItem {
   mutualIntent: MeetupIntent;
 }
 
+export type MeetingFormat = 'in-person' | 'online';
+export type OnlinePlatform = 'Google Meet' | 'Zoom' | 'Microsoft Teams' | 'Phone Call';
+
+// One message in a 1-on-1 match thread. Messages with a future `sentAt` are simulated
+// partner replies that "arrive" once their time passes (the UI shows a typing indicator).
+export interface ChatMessage {
+  id: string;
+  matchId: string;
+  senderId: string;
+  text: string;
+  sentAt: number;
+}
+
 export interface CalendarMeetup {
   id: string;
   matchId: string;
@@ -104,7 +117,10 @@ export interface CalendarMeetup {
   partnerRole: UserRole;
   partnerAvatar: string;
   partnerMajorOrCompany: string;
-  locationName: string;
+  format?: MeetingFormat; // undefined on meetups saved before online meetings existed = in-person
+  onlinePlatform?: OnlinePlatform;
+  meetingLink?: string; // http(s) only
+  locationName: string; // spot name, or the platform name for online meetups
   locationAddress: string;
   scheduledTime: string; // ISO string
   durationMinutes: number;
