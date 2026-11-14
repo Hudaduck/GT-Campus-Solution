@@ -1413,6 +1413,15 @@ export class Repository {
   }
 
   /**
+   * Scheduling is unlocked only once both people have actually talked (each has sent at
+   * least one delivered message), so availability can be worked out in chat first.
+   */
+  static hasConversation(matchId: string, viewerId: string, now: number = Date.now()): boolean {
+    const delivered = this.getMessages(matchId).filter((m) => m.sentAt <= now);
+    return delivered.some((m) => m.senderId === viewerId) && delivered.some((m) => m.senderId !== viewerId);
+  }
+
+  /**
    * Appends a message. When the viewer sends their first message in a thread and a
    * `replyFrom` partner is given, a simulated reply is queued DEMO_REPLY_DELAY_MS later.
    */

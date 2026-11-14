@@ -119,6 +119,9 @@ test.describe('Suite 3: E2E Core User Flows', () => {
     // Chat: send a message, see the typing indicator resolve into the partner's reply
     const chat = page.locator('[data-testid="chat-drawer"]');
     await expect(chat).toBeVisible();
+    // Scheduling is locked until both people have talked
+    await expect(chat.locator('[data-testid="plan-online"]')).toBeDisabled();
+    await expect(chat.locator('[data-testid="plan-in-person"]')).toBeDisabled();
     await chat.getByLabel('Message', { exact: true }).fill('Hi! Want to chat about your work sometime?');
     await chat.getByLabel('Message', { exact: true }).press('Enter');
     await expect(chat.locator('[data-testid="chat-message-mine"]')).toHaveCount(1);
@@ -147,23 +150,42 @@ test.describe('Suite 3: E2E Core User Flows', () => {
     await expect(page.locator('a', { hasText: 'Join meeting' })).toHaveAttribute('href', 'https://zoom.us/j/123456789');
   });
 
-  test('Flow 6: Mutual Match -> schedule an in-person midpoint coffee directly', async ({ page }) => {
+  test('Flow 6: Mutual Match -> talk first -> meet in person at your own address', async ({ page }) => {
     await page.locator('[data-testid="nav-tab-swipe"]').click();
     await page.locator('button[title="Connect & Meet"]').first().click();
     await expect(page.locator("text=It's a Mutual Match!")).toBeVisible();
-    await page.locator('button', { hasText: 'Schedule a Meetup' }).click();
 
-    // In person is the default format
+    // A fresh match only offers messaging, not scheduling
+    await expect(page.locator('[role="dialog"] button', { hasText: /Schedule/ })).toHaveCount(0);
+    await page.locator('button', { hasText: 'Send a Message' }).click();
+
+    const chat = page.locator('[data-testid="chat-drawer"]');
+    await chat.getByLabel('Message', { exact: true }).fill('Want to meet up this week?');
+    await chat.getByLabel('Message', { exact: true }).press('Enter');
+    await expect(chat.locator('[data-testid="chat-message-theirs"]')).toHaveCount(1, { timeout: 5000 });
+    await chat.locator('[data-testid="plan-in-person"]').click();
+
+    // Recommended spots are offered, plus "Somewhere else" with a custom address
     await expect(page.locator('[data-testid="format-in-person"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('text=Recommended Spots')).toBeVisible();
     await expect(page.locator('text=Dancing Goats Coffee Bar')).toBeVisible();
+    await page.locator('[data-testid="spot-custom"]').click();
+    const confirmBtn = page.locator('button:has-text("Confirm & Download .ics Meetup")');
+    await expect(confirmBtn).toBeDisabled();
+    await page.getByLabel(/Place name/).fill('Piedmont Park');
+    await page.getByLabel(/^Address/).fill('400 Park Dr NE, Atlanta, GA');
+
     const download = page.waitForEvent('download');
-    await page.locator('button:has-text("Confirm & Download .ics Meetup")').click();
+    await confirmBtn.click();
     await download;
     await expect(page.locator('text=Meetup Confirmed!')).toBeVisible();
     await page.locator('button', { hasText: 'Back to ThirdPlace' }).click();
+    await expect(chat).toContainText('meetup at Piedmont Park (400 Park Dr NE, Atlanta, GA)');
+    await page.getByLabel('Close chat').click();
 
     await page.locator('[data-testid="nav-tab-plans"]').click();
-    await expect(page.locator('text=Dancing Goats Coffee Bar').first()).toBeVisible();
+    await expect(page.locator('text=Piedmont Park').first()).toBeVisible();
+    await expect(page.locator('text=400 Park Dr NE, Atlanta, GA').first()).toBeVisible();
     await expect(page.locator('text=In person').first()).toBeVisible();
   });
 });

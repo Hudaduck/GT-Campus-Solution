@@ -100,7 +100,7 @@ describe('SwipeRadarView Component', () => {
   });
 
   it('triggers double opt-in match modal when clicking connect and persists match in Repository', () => {
-    const { getByText, getByTitle } = render(
+    const { getByText, getByTitle, queryByText } = render(
       React.createElement(SwipeRadarView, {})
     );
 
@@ -109,8 +109,9 @@ describe('SwipeRadarView Component', () => {
 
     // Mutual Match Modal should appear
     expect(getByText("It's a Mutual Match!")).toBeDefined();
+    // Talk first: the only next step offered on a fresh match is messaging
     expect(getByText(/Send a Message/i)).toBeDefined();
-    expect(getByText(/Schedule a Meetup/i)).toBeDefined();
+    expect(queryByText(/Schedule/i)).toBeNull();
 
     // Match should be saved in Repository
     const matches = Repository.getMatches();

@@ -77,6 +77,10 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, partner
 
   const visible = useMemo(() => messages.filter((m) => m.sentAt <= now), [messages, now]);
 
+  // Both sides must have spoken before a meetup can be planned (availability is agreed in chat)
+  const canSchedule =
+    visible.some((m) => m.senderId === viewer.id) && visible.some((m) => m.senderId !== viewer.id);
+
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -201,12 +205,19 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, partner
         {/* Plan a meetup */}
         <div className="px-4 pt-2 pb-1 border-t border-[#B39051]/25">
           <p className="text-[10px] uppercase tracking-wider font-bold text-tp-subtle mb-1.5">Ready to meet?</p>
+          {!canSchedule && (
+            <p data-testid="schedule-locked-hint" className="text-[11px] text-tp-muted mb-1.5">
+              Chat with {partner.name.split(' ')[0]} first to check availability. Scheduling unlocks once you've both
+              sent a message.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               data-testid="plan-in-person"
+              disabled={!canSchedule}
               onClick={() => setPlanFormat('in-person')}
-              className="py-2 rounded-xl border border-[#B39051]/50 bg-tp-canvas/60 text-tp-ink text-xs font-semibold flex items-center justify-center gap-1.5 hover:border-[#B39051] transition"
+              className="py-2 rounded-xl border border-[#B39051]/50 bg-tp-canvas/60 text-tp-ink text-xs font-semibold flex items-center justify-center gap-1.5 hover:border-[#B39051] transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-[#B39051]/50"
             >
               <MapPin className="w-3.5 h-3.5 text-tp-accent" />
               Meet in person
@@ -214,8 +225,9 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, partner
             <button
               type="button"
               data-testid="plan-online"
+              disabled={!canSchedule}
               onClick={() => setPlanFormat('online')}
-              className="py-2 rounded-xl border border-[#B39051]/50 bg-tp-canvas/60 text-tp-ink text-xs font-semibold flex items-center justify-center gap-1.5 hover:border-[#B39051] transition"
+              className="py-2 rounded-xl border border-[#B39051]/50 bg-tp-canvas/60 text-tp-ink text-xs font-semibold flex items-center justify-center gap-1.5 hover:border-[#B39051] transition disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-[#B39051]/50"
             >
               <Video className="w-3.5 h-3.5 text-tp-accent" />
               Meet online

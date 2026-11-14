@@ -10,7 +10,6 @@ import {
   BadgeCheck,
   ChevronUp,
   Briefcase,
-  Coffee,
   Handshake,
   MapPin,
   MessageCircle,
@@ -25,7 +24,7 @@ import {
 } from 'lucide-react';
 import { LayoutMode } from '../../shared/ui/layout';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
-import { SchedulerDrawer, ChatDrawer } from '../scheduler';
+import { ChatDrawer } from '../scheduler';
 import { MatchBreakdownCard } from './MatchBreakdownCard';
 import { useSwipeGesture, SwipeDirection } from './useSwipeGesture';
 
@@ -68,14 +67,9 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
   // Match Modal state
   const [matchedProfile, setMatchedProfile] = useState<UserProfile | null>(null);
   const [showMatchModal, setShowMatchModal] = useState<boolean>(false);
-  const [currentMatchId, setCurrentMatchId] = useState<string | undefined>(undefined);
 
   // "Tap for full profile" sheet
   const [isFullProfileOpen, setIsFullProfileOpen] = useState<boolean>(false);
-
-  // Scheduler Drawer state
-  const [schedulerPartner, setSchedulerPartner] = useState<UserProfile | null>(null);
-  const [isSchedulerOpen, setIsSchedulerOpen] = useState<boolean>(false);
 
   // Chat Drawer state: message a match first, then pick in-person or online
   const [chatPartner, setChatPartner] = useState<UserProfile | null>(null);
@@ -147,7 +141,6 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
     Repository.saveMatch(newMatch);
 
     // Trigger Double Opt-In Match Celebration
-    setCurrentMatchId(matchId);
     setMatchedProfile(candidate);
     setShowMatchModal(true);
 
@@ -903,18 +896,6 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                 <span>Send a Message</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMatchModal(false);
-                  setSchedulerPartner(matchedProfile);
-                  setIsSchedulerOpen(true);
-                }}
-                className="w-full py-2.5 px-4 rounded-xl border border-[#B39051] text-tp-ink font-semibold text-xs hover:bg-tp-elevated transition flex items-center justify-center gap-2"
-              >
-                <Coffee className="w-4 h-4 text-tp-accent" />
-                <span>Schedule a Meetup</span>
-              </button>
 
               <button
                 type="button"
@@ -934,17 +915,6 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
         onClose={() => setChatPartner(null)}
         partner={chatPartner}
         onScheduled={() => loadData()}
-      />
-
-      {/* 7. Scheduler Drawer */}
-      <SchedulerDrawer
-        isOpen={isSchedulerOpen}
-        onClose={() => setIsSchedulerOpen(false)}
-        partner={schedulerPartner}
-        matchId={currentMatchId}
-        onScheduled={() => {
-          loadData();
-        }}
       />
     </div>
   );
