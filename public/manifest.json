@@ -1,0 +1,26 @@
+{
+  "name": "ThirdPlace: Your Campus, Everywhere",
+  "short_name": "ThirdPlace",
+  "description": "Hyper-local Georgia Tech student & alumni social radar for pop-up events and 1-on-1 career connections.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#051E39",
+  "background_color": "#051E39",
+  "categories": ["social", "education", "networking"],
+  "icons": [
+    {
+      "src": "/buzz-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/buzz-icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
