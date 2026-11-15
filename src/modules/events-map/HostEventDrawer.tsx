@@ -5,6 +5,7 @@ import { EventCategory, EventItem, UserProfile } from '../../shared/contracts';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { Repository, formatHobbies } from '../../shared/data/repository';
 import { formatStart } from './eventTime';
+import { defaultStart, fromInputs, startError, toDateInput, toTimeInput } from '../../shared/schedule';
 
 interface HostEventDrawerProps {
   currentUser: UserProfile;
@@ -17,31 +18,6 @@ interface HostEventDrawerProps {
 const DURATION_OPTIONS = [1, 2, 3, 4, 6];
 const MAX_DAYS_AHEAD = 30;
 const HOUR = 60 * 60 * 1000;
-
-const pad = (n: number) => String(n).padStart(2, '0');
-const toDateInput = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const toTimeInput = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-
-// Next full hour that's at least 30 minutes away
-function defaultStart(now = new Date()): Date {
-  const d = new Date(now.getTime() + 30 * 60 * 1000);
-  d.setMinutes(0, 0, 0);
-  d.setHours(d.getHours() + 1);
-  return d;
-}
-
-function quickStarts(now = new Date()): { label: string; at: Date }[] {
-  const at = (dayOffset: number, hour: number) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() + dayOffset);
-    d.setHours(hour, 0, 0, 0);
-    return d;
-  };
-  const options = [{ label: 'In 1 hour', at: defaultStart(now) }];
-  if (now.getHours() < 18) options.push({ label: 'Tonight · 7 PM', at: at(0, 19) });
-  options.push({ label: 'Tomorrow · 6 PM', at: at(1, 18) });
-  return options;
-}
 
 // Same names as the map chips and event cards (CATEGORY_LABELS)
 const CATEGORIES: { id: EventCategory; label: string }[] = (
@@ -74,7 +50,7 @@ export const HostEventDrawer: React.FC<HostEventDrawerProps> = ({
   const [tagsInput, setTagsInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Each time the form opens, suggest the next sensible start time
+  // Each time the form opens, suggest a sensible start (~2h out, 9 AM-8 PM)
   useEffect(() => {
     if (isOpen) {
       const d = defaultStart();
@@ -86,17 +62,11 @@ export const HostEventDrawer: React.FC<HostEventDrawerProps> = ({
 
   if (!isOpen) return null;
 
-  const startAt = new Date(`${startDate}T${startClock}`);
+  const startAt = fromInputs(startDate, startClock);
   const validStart = !Number.isNaN(startAt.getTime());
   const startPreview = validStart ? formatStart(startAt) : 'pick a time';
   const today = new Date();
   const maxDate = new Date(today.getTime() + MAX_DAYS_AHEAD * 24 * HOUR);
-
-  const setStart = (d: Date) => {
-    setStartDate(toDateInput(d));
-    setStartClock(toTimeInput(d));
-    setErrorMsg('');
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,16 +80,9 @@ export const HostEventDrawer: React.FC<HostEventDrawerProps> = ({
     }
 
     const now = Date.now();
-    if (!validStart) {
-      setErrorMsg('Please pick a date and start time');
-      return;
-    }
-    if (startAt.getTime() < now - 60 * 1000) {
-      setErrorMsg('Pick a start time in the future');
-      return;
-    }
-    if (startAt.getTime() > now + MAX_DAYS_AHEAD * 24 * HOUR) {
-      setErrorMsg(`Pop-ups can be scheduled up to ${MAX_DAYS_AHEAD} days ahead`);
+    const timeProblem = startError(startAt, now, MAX_DAYS_AHEAD);
+    if (timeProblem) {
+      setErrorMsg(timeProblem);
       return;
     }
 
@@ -306,22 +269,6 @@ export const HostEventDrawer: React.FC<HostEventDrawerProps> = ({
               <span data-testid="event-start-preview" className="text-[11px] text-tp-accent font-bold">
                 {validStart ? `Starts ${startPreview}` : 'Pick a time'}
               </span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {quickStarts().map((q) => (
-                <button
-                  type="button"
-                  key={q.label}
-                  onClick={() => setStart(q.at)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${
-                    validStart && Math.abs(q.at.getTime() - startAt.getTime()) < 60 * 1000
-                      ? 'bg-[#B39051] text-[#051E39] border-[#B39051]'
-                      : 'bg-tp-elevated text-tp-muted border-tp-line hover:border-[#B39051]/60'
-                  }`}
-                >
-                  {q.label}
-                </button>
-              ))}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <input

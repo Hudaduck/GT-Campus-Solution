@@ -11,6 +11,7 @@ import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { Repository, MIDPOINT_COFFEE_SPOTS, sanitizeMeetingLink } from '../../shared/data/repository';
 import { generateIcsFile, generateGoogleCalendarUrl, downloadIcsFile } from './calendarUtils';
 import { intentLabels } from '../../shared/intents';
+import { defaultStart, fromInputs, startError, toDateInput, toTimeInput } from '../../shared/schedule';
 
 export const ONLINE_PLATFORMS: OnlinePlatform[] = ['Google Meet', 'Zoom', 'Microsoft Teams', 'Phone Call'];
 
@@ -52,50 +53,12 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
     initialSpot || MIDPOINT_COFFEE_SPOTS[0]
   );
   const [selectedDuration, setSelectedDuration] = useState<number>(45); // in minutes
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('');
-  const [customDateTime, setCustomDateTime] = useState<string>('');
+  // Plain date + time (default ~2h out, 9 AM-8 PM); availability is agreed in chat first
+  const [startDate, setStartDate] = useState<string>(() => toDateInput(defaultStart()));
+  const [startClock, setStartClock] = useState<string>(() => toTimeInput(defaultStart()));
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [scheduledMeetup, setScheduledMeetup] = useState<CalendarMeetup | null>(null);
 
-  // Generate 4 dynamic quick time slots based on current time
-  const quickTimeSlots = React.useMemo(() => {
-    const now = new Date();
-    const clock = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    const at = (dayOffset: number, hours: number, minutes = 0) => {
-      const d = new Date(now);
-      d.setDate(d.getDate() + dayOffset);
-      d.setHours(hours, minutes, 0, 0);
-      return d;
-    };
-    const slots: { label: string; date: string }[] = [];
-
-    // "Today" only if there's a sensible time left: 2h+ from now, on the half hour, 8 AM-8:30 PM
-    const later = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-    later.setMinutes(later.getMinutes() <= 30 ? 30 : 60, 0, 0);
-    const minutesOfDay = later.getHours() * 60 + later.getMinutes();
-    const sameDay = later.getDate() === now.getDate();
-    if (sameDay && minutesOfDay >= 8 * 60 && minutesOfDay <= 20 * 60 + 30) {
-      slots.push({ label: `Today • ${clock(later)}`, date: later.toISOString() });
-    }
-
-    slots.push({ label: 'Tomorrow • 10:30 AM', date: at(1, 10, 30).toISOString() });
-    slots.push({ label: 'Tomorrow • 3:30 PM', date: at(1, 15, 30).toISOString() });
-    const inTwoDays = at(2, 14);
-    slots.push({
-      label: `${inTwoDays.toLocaleDateString([], { weekday: 'short' })} • 2:00 PM`,
-      date: inTwoDays.toISOString(),
-    });
-    // Keep four choices when "Today" isn't offered
-    if (slots.length < 4) slots.splice(2, 0, { label: 'Tomorrow • 6:00 PM', date: at(1, 18).toISOString() });
-
-    return slots;
-  }, []);
-
-  useEffect(() => {
-    if (quickTimeSlots.length > 0 && !selectedTimeSlot) {
-      setSelectedTimeSlot(quickTimeSlots[0].date);
-    }
-  }, [quickTimeSlots, selectedTimeSlot]);
 
   useEffect(() => {
     if (isOpen) {
@@ -106,6 +69,9 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
       setUseCustomSpot(false);
       setCustomName('');
       setCustomAddress('');
+      const start = defaultStart();
+      setStartDate(toDateInput(start));
+      setStartClock(toTimeInput(start));
       if (initialSpot) {
         setSelectedSpot(initialSpot);
       } else {
@@ -117,9 +83,11 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
   if (!isOpen || !partner) return null;
 
   const currentUser = Repository.getCurrentUser();
-  const effectiveMeetupTime = customDateTime
-    ? new Date(customDateTime).toISOString()
-    : selectedTimeSlot || quickTimeSlots[0].date;
+  const startAt = fromInputs(startDate, startClock);
+  const timeError = startError(startAt);
+  const effectiveMeetupTime = timeError ? '' : startAt.toISOString();
+  const today = new Date();
+  const maxDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
 
   const isOnline = format === 'online';
   const isPhone = platform === 'Phone Call';
@@ -128,7 +96,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
 
   const isCustomSpot = !isOnline && useCustomSpot;
   const missingCustomAddress = isCustomSpot && customAddress.trim() === '';
-  const cannotConfirm = hasInvalidLink || missingCustomAddress;
+  const cannotConfirm = hasInvalidLink || missingCustomAddress || timeError !== null;
 
   const locationName = isOnline
     ? platform
@@ -558,7 +526,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                     <span className="w-5 h-5 rounded-full bg-[#B39051] text-[#051E39] inline-flex items-center justify-center text-[11px] font-extrabold">
                       3
                     </span>
-                    <span>Select Time Slot</span>
+                    <span>Pick a Time</span>
                   </label>
                   {/* Duration Selector */}
                   <div className="flex items-center gap-1 bg-tp-canvas p-0.5 rounded-lg border border-[#B39051]/35">
@@ -580,43 +548,33 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  {quickTimeSlots.map((slot) => {
-                    const isSelected = selectedTimeSlot === slot.date && !customDateTime;
-                    return (
-                      <button
-                        key={slot.label}
-                        type="button"
-                        onClick={() => {
-                          setSelectedTimeSlot(slot.date);
-                          setCustomDateTime('');
-                        }}
-                        className={`py-2 px-3 rounded-xl border text-xs font-semibold text-left transition ${
-                          isSelected
-                            ? 'bg-tp-elevated border-[#B39051] text-tp-accent shadow-sm'
-                            : 'bg-tp-canvas/60 border-[#B39051]/35 text-tp-muted hover:border-[#B39051]/50'
-                        }`}
-                      >
-                        {slot.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Optional Custom Time */}
-                <div className="mt-2.5">
-                  <label className="text-[11px] text-tp-subtle block mb-1">
-                    Or pick custom time:
-                  </label>
                   <input
-                    type="datetime-local"
-                    value={customDateTime}
-                    onChange={(e) => {
-                      setCustomDateTime(e.target.value);
-                      setSelectedTimeSlot('');
-                    }}
-                    className="w-full bg-tp-canvas border border-[#B39051]/35 rounded-xl px-3 py-1.5 text-xs text-tp-ink focus:outline-none focus:border-[#B39051]"
+                    type="date"
+                    aria-label="Meetup date"
+                    data-testid="meetup-date-input"
+                    value={startDate}
+                    min={toDateInput(today)}
+                    max={toDateInput(maxDate)}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full bg-tp-canvas border border-[#B39051]/35 rounded-xl px-3 py-2 text-xs text-tp-ink focus:outline-none focus:border-[#B39051] [color-scheme:dark]"
+                  />
+                  <input
+                    type="time"
+                    aria-label="Meetup start time"
+                    data-testid="meetup-time-input"
+                    value={startClock}
+                    step={900}
+                    onChange={(e) => setStartClock(e.target.value)}
+                    className="w-full bg-tp-canvas border border-[#B39051]/35 rounded-xl px-3 py-2 text-xs text-tp-ink focus:outline-none focus:border-[#B39051] [color-scheme:dark]"
                   />
                 </div>
+                {timeError ? (
+                  <p role="alert" className="text-[11px] text-red-400 mt-1.5">{timeError}</p>
+                ) : (
+                  <p data-testid="meetup-time-preview" className="text-[11px] text-tp-subtle mt-1.5">
+                    {formatWhen(effectiveMeetupTime)} · {selectedDuration} min
+                  </p>
+                )}
               </div>
 
               {/* Action Buttons */}

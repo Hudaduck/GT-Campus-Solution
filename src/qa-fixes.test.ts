@@ -121,14 +121,31 @@ describe('QA: sensible times', () => {
     }
   });
 
-  it('the scheduler never suggests overnight times', () => {
+  it('no quick picks: both schedulers open on a sensible daytime date + time, even at 2 AM', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 10, 15, 2, 4)); // 2:04 AM
     Repository.resetAllData();
+
+    // 1-on-1 meetup
+    const { unmount } = render(React.createElement(SchedulerDrawer, { isOpen: true, onClose: () => {}, partner: alex }));
+    expect(screen.queryByText(/Tomorrow •|Today •/)).toBeNull();
+    expect((screen.getByTestId('meetup-date-input') as HTMLInputElement).value).toBe('2026-11-15');
+    expect((screen.getByTestId('meetup-time-input') as HTMLInputElement).value).toBe('09:00');
+    unmount();
+
+    // Pop-up
+    withBrand(React.createElement(EventsMapView));
+    fireEvent.click(screen.getByTestId('open-host-event-button'));
+    expect(screen.queryByText(/In 1 hour|Tonight · 7 PM|Tomorrow · 6 PM/)).toBeNull();
+    expect((screen.getByTestId('event-time-input') as HTMLInputElement).value).toBe('09:00');
+  });
+
+  it('the 1-on-1 scheduler blocks a past time', () => {
     render(React.createElement(SchedulerDrawer, { isOpen: true, onClose: () => {}, partner: alex }));
-    const labels = screen.getAllByRole('button').map((b) => b.textContent ?? '').filter((t) => t.includes('•'));
-    expect(labels.length).toBe(4);
-    expect(labels.some((l) => /AM/.test(l) && /^(Today|Tomorrow)/.test(l) && /\b([1-7]):\d\d AM/.test(l))).toBe(false);
+    fireEvent.change(screen.getByTestId('meetup-date-input'), { target: { value: '2020-01-01' } });
+    expect(screen.getByRole('alert').textContent).toBe('Pick a start time in the future');
+    const confirm = screen.getByText(/Confirm & Download .ics Meetup/i).closest('button')!;
+    expect(confirm.disabled).toBe(true);
   });
 });
 
@@ -178,12 +195,12 @@ describe('QA: empty states & explanations', () => {
     expect(screen.getByText('Open Connect 1-on-1')).toBeDefined();
   });
 
-  it('a small Connect deck says why and offers to show everyone', () => {
+  it('a small Connect deck says why (no extra link: the dropdown already offers Everyone)', () => {
     render(React.createElement(SwipeRadarView, {}));
     const hint = screen.getByTestId('deck-hint');
     expect(hint.textContent).toMatch(/people fit your intents within 5 mi/);
-    fireEvent.click(screen.getByText('Show everyone'));
-    expect((screen.getByTestId('intent-filter') as HTMLSelectElement).value).toBe('all');
+    expect(screen.queryByText('Show everyone')).toBeNull();
+    expect(hint.querySelector('button')).toBeNull();
   });
 
   it('the full profile no longer has two "Looking for" headings', () => {

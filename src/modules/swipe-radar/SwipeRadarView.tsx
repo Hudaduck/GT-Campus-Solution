@@ -395,29 +395,13 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
             </label>
           </div>
 
-          {/* Small deck? Say why (filters / radius) and offer one tap to widen it */}
+          {/* Small deck? Say why (intents / radius); widening is in the dropdown + location chip above */}
           {filteredProfiles.length > 0 && filteredProfiles.length < 5 && (intentFilter === 'for-you' || locationPref.radiusMiles !== null) && (
-            <div data-testid="deck-hint" className="shrink-0 flex items-center justify-between gap-2 px-1 text-[11px] text-tp-muted">
-              <span className="min-w-0">
-                {filteredProfiles.length} {filteredProfiles.length === 1 ? 'person fits' : 'people fit'}
-                {intentFilter === 'for-you' ? ' your intents' : ''}
-                {locationPref.radiusMiles !== null ? ` within ${radiusLabel(locationPref.radiusMiles)}` : ''}.
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  if (intentFilter === 'for-you') {
-                    setIntentFilter('all');
-                    setCurrentIndex(0);
-                  } else {
-                    changeLocation({ ...locationPref, radiusMiles: nextWiderRadius ?? null });
-                  }
-                }}
-                className="shrink-0 font-bold text-tp-accent underline"
-              >
-                {intentFilter === 'for-you' ? 'Show everyone' : `Widen to ${radiusLabel(nextWiderRadius ?? null)}`}
-              </button>
-            </div>
+            <p data-testid="deck-hint" className="shrink-0 px-1 text-[11px] text-tp-muted">
+              {filteredProfiles.length} {filteredProfiles.length === 1 ? 'person fits' : 'people fit'}
+              {intentFilter === 'for-you' ? ' your intents' : ''}
+              {locationPref.radiusMiles !== null ? ` within ${radiusLabel(locationPref.radiusMiles)}` : ''}.
+            </p>
           )}
 
           {/* Card Stack Area */}
