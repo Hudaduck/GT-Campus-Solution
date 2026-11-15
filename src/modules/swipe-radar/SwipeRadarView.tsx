@@ -15,6 +15,7 @@ import {
 } from '../../shared/intents';
 import {
   BadgeCheck,
+  ChevronDown,
   ChevronUp,
   Briefcase,
   Handshake,
@@ -228,19 +229,21 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
 
   // Candidate's own intents (max 2 on the card); the ones that complement mine come first
   const complementOfMine = new Set((currentCandidate?.mutualIntents ?? []).map((i) => INTENT_CATALOG[i].complement));
-  const cardIntents = (currentCandidate?.intents ?? [])
+  const allCardIntents = (currentCandidate?.intents ?? [])
     .map((id) => ({ id, mutual: complementOfMine.has(id) }))
-    .sort((a, b) => Number(b.mutual) - Number(a.mutual))
-    .slice(0, 2);
+    .sort((a, b) => Number(b.mutual) - Number(a.mutual));
+  // Gold tags on the photo = only the intents that match mine (full list lives in the profile sheet)
+  const cardIntents = allCardIntents.filter(({ mutual }) => mutual);
 
   const matchMutualIntents = matchedProfile ? getMutualIntents(currentUser, matchedProfile) : [];
 
-  const chip = (active: boolean) =>
-    `shrink-0 px-2.5 min-h-[32px] rounded-full text-[11px] whitespace-nowrap transition ${
-      active
-        ? 'bg-[#B39051] text-[#051E39] font-bold'
-        : 'bg-tp-surface text-tp-muted border border-[#B39051]/35 hover:text-tp-ink'
+  // Native <select> (best on phones) styled as a pill; gold when narrowing the deck
+  const selectWrap = (active: boolean) =>
+    `relative flex items-center gap-1 min-h-[40px] pl-3 pr-2.5 rounded-xl border text-xs transition focus-within:ring-1 focus-within:ring-[#B39051] ${
+      active ? 'border-[#B39051] bg-tp-elevated text-tp-accent' : 'border-[#B39051]/35 bg-tp-surface text-tp-muted'
     }`;
+  const selectClass =
+    'appearance-none bg-transparent w-full min-w-0 pr-1 font-semibold text-tp-ink outline-none cursor-pointer truncate [&>option]:bg-tp-surface [&>optgroup]:bg-tp-surface';
 
   return (
     <div
@@ -316,35 +319,48 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
             </p>
           </div>
 
-          {/* Filters: one scrollable row */}
-          <div className="shrink-0 -mx-3 px-3 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-            {(['all', 'student', 'alumni'] as const).map((r) => (
-              <button
-                key={r}
-                onClick={() => {
-                  setRoleFilter(r);
+          {/* Filters: two compact dropdowns (who + role) */}
+          <div className="shrink-0 grid grid-cols-[1fr_auto] gap-2">
+            <label className={selectWrap(intentFilter !== 'all')}>
+              <span className="sr-only">Show</span>
+              <select
+                data-testid="intent-filter"
+                value={intentFilter}
+                onChange={(e) => {
+                  setIntentFilter(e.target.value as IntentFilter);
                   setCurrentIndex(0);
                 }}
-                className={chip(roleFilter === r)}
+                className={selectClass}
               >
-                {r === 'all' ? 'All Roles' : r === 'alumni' ? 'Alumni' : 'Students'}
-              </button>
-            ))}
-            <span aria-hidden="true" className="shrink-0 w-px h-5 bg-[#B39051]/35 mx-0.5" />
-            {(['for-you', 'all', ...INTENT_ORDER] as IntentFilter[]).map((filter) => (
-              <button
-                key={filter}
-                data-testid={`intent-filter-${filter}`}
-                aria-pressed={intentFilter === filter}
-                onClick={() => {
-                  setIntentFilter(filter);
+                <option value="for-you">For You</option>
+                <option value="all">Everyone</option>
+                <optgroup label="Looking for…">
+                  {INTENT_ORDER.map((id) => (
+                    <option key={id} value={id}>
+                      {INTENT_CATALOG[id].filterLabel}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+              <ChevronDown aria-hidden="true" className="w-4 h-4 shrink-0 pointer-events-none" />
+            </label>
+            <label className={selectWrap(roleFilter !== 'all')}>
+              <span className="sr-only">Role</span>
+              <select
+                data-testid="role-filter"
+                value={roleFilter}
+                onChange={(e) => {
+                  setRoleFilter(e.target.value as 'all' | 'student' | 'alumni');
                   setCurrentIndex(0);
                 }}
-                className={chip(intentFilter === filter)}
+                className={selectClass}
               >
-                {filter === 'for-you' ? 'For You' : filter === 'all' ? 'Everyone' : INTENT_CATALOG[filter].filterLabel}
-              </button>
-            ))}
+                <option value="all">All Roles</option>
+                <option value="student">Students</option>
+                <option value="alumni">Alumni</option>
+              </select>
+              <ChevronDown aria-hidden="true" className="w-4 h-4 shrink-0 pointer-events-none" />
+            </label>
           </div>
 
           {/* Card Stack Area */}
@@ -423,21 +439,22 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                           <p className="text-[11px] text-tp-muted drop-shadow truncate">{currentCandidate.companyOrLab}</p>
                         )}
                       </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0" data-testid="candidate-intents">
-                        {cardIntents.map(({ id, mutual }) => (
-                          <span
-                            key={id}
-                            data-mutual={mutual || undefined}
-                            className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-wide ${
-                              mutual
-                                ? 'bg-[#B39051] text-[#051E39]'
-                                : 'bg-[#051E39]/70 text-tp-ink border border-[#B39051]/50'
-                            }`}
-                          >
-                            {INTENT_CATALOG[id].badge}
-                          </span>
-                        ))}
-                      </div>
+                      {cardIntents.length > 0 && (
+                        <div
+                          className="flex flex-wrap justify-end gap-1 shrink-0 max-w-[50%]"
+                          data-testid="candidate-intents"
+                        >
+                          {cardIntents.map(({ id }) => (
+                            <span
+                              key={id}
+                              data-mutual
+                              className="text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-wide bg-[#B39051] text-[#051E39]"
+                            >
+                              {INTENT_CATALOG[id].badge}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -769,6 +786,29 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
             </p>
 
             <p className="text-sm text-tp-ink leading-relaxed">{currentCandidate.bio}</p>
+
+            <section className="space-y-1.5" data-testid="full-profile-intents">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-tp-accent">Looking for</h4>
+              {allCardIntents.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {allCardIntents.map(({ id, mutual }) => (
+                    <span
+                      key={id}
+                      data-mutual={mutual || undefined}
+                      className={`text-xs px-2.5 py-1 rounded-xl font-semibold ${
+                        mutual
+                          ? 'bg-[#B39051] text-[#051E39]'
+                          : 'bg-tp-elevated text-tp-muted border border-tp-line'
+                      }`}
+                    >
+                      {INTENT_CATALOG[id].label}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-tp-subtle">Open to anything.</p>
+              )}
+            </section>
 
             <section className="space-y-1.5">
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-tp-accent">Hobbies</h4>

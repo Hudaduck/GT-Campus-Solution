@@ -3,7 +3,8 @@ import {
   getMutualIntents,
   isIntentCompatible,
   resolveIntents,
-  MAX_INTENTS,
+  toggleIntent,
+  sortIntents,
 } from './intents';
 import { Repository, INITIAL_CURRENT_USER, INITIAL_PROFILES, buildSwipeCandidate } from './data/repository';
 
@@ -36,17 +37,33 @@ describe('Intent matching', () => {
 });
 
 describe('Legacy intent migration', () => {
-  it('maps legacy "mentorship" to both sides (no guessing from role) and "all" to open', () => {
-    expect(resolveIntents({ intent: 'mentorship' })).toEqual(['find-mentor', 'give-mentorship']);
+  it('maps legacy "mentorship" (side unknown, never guessed from role) and "all" to open to anything', () => {
+    expect(resolveIntents({ intent: 'mentorship' })).toEqual([]);
     expect(resolveIntents({ intent: 'all' })).toEqual([]);
     expect(resolveIntents({ intent: 'co-founder' })).toEqual(['co-founder']);
     expect(resolveIntents({ intent: 'bogus' })).toEqual([]);
   });
 
-  it('cleans new-shape lists: drops unknown values, dedupes, caps at MAX_INTENTS', () => {
-    const resolved = resolveIntents({ intents: ['study', 'study', 'nope', 'casual', 'co-founder', 'roommate'] });
-    expect(resolved).toEqual(['study', 'casual', 'co-founder']);
-    expect(resolved.length).toBe(MAX_INTENTS);
+  it('cleans new-shape lists: drops unknown values, dedupes, canonical order, no cap on other intents', () => {
+    const resolved = resolveIntents({
+      intents: ['roommate', 'study', 'study', 'nope', 'casual', 'give-mentorship', 'co-founder', 'find-mentor'],
+    });
+    // Only one mentorship side survives: the first one listed
+    expect(resolved).toEqual(['give-mentorship', 'co-founder', 'study', 'casual', 'roommate']);
+  });
+
+  it('toggleIntent keeps mentorship to one side and everything else free', () => {
+    expect(toggleIntent(['find-mentor', 'study'], 'give-mentorship')).toEqual(['give-mentorship', 'study']);
+    expect(toggleIntent(['give-mentorship'], 'give-mentorship')).toEqual([]);
+    expect(toggleIntent(['co-founder', 'study', 'casual'], 'roommate')).toEqual(['co-founder', 'study', 'casual', 'roommate']);
+  });
+
+  it('does not depend on the order intents were picked in', () => {
+    const a = { intents: sortIntents(['co-founder', 'find-mentor']) };
+    const b = { intents: sortIntents(['find-mentor', 'co-founder']) };
+    const other = { intents: ['give-mentorship', 'co-founder'] as any };
+    expect(getMutualIntents(a, other)).toEqual(getMutualIntents(b, other));
+    expect(getMutualIntents(a, other)).toEqual(['find-mentor', 'co-founder']);
   });
 
   beforeEach(() => Repository.resetAllData());
@@ -71,7 +88,7 @@ describe('Legacy intent migration', () => {
     );
 
     const user = Repository.getCurrentUser();
-    expect(user.intents).toEqual(['find-mentor', 'give-mentorship']);
+    expect(user.intents).toEqual([]);
     expect('intent' in user).toBe(false);
 
     const [match] = Repository.getMatches();

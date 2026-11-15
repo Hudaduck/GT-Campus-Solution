@@ -30,7 +30,7 @@ export interface UserProfile {
   workHistory?: WorkExperience[];
   targetCompanies?: string[];
   targetRoles?: string[];
-  intents: MeetupIntent[]; // up to MAX_INTENTS; empty = open to anything
+  intents: MeetupIntent[]; // any number, canonical order; empty = open to anything
   hobbies: string[];
   isOpenToMeet: boolean;
   openToMeetExpiresAt?: number; // timestamp in ms (TTL)

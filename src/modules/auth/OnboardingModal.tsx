@@ -447,7 +447,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             <label className="block text-xs font-semibold uppercase tracking-wider text-tp-accent mb-2">
               4. What are you looking for?
             </label>
-            <IntentPicker value={intents} onChange={setIntents} />
+            <IntentPicker value={intents} onChange={setIntents} viewer={user} />
           </div>
 
           {/* 5. 3-5 Hobbies */}

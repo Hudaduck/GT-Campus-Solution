@@ -184,7 +184,7 @@ describe('LinkedInImportModal UI', () => {
 
     const picker = screen.getByTestId('linkedin-intents');
     // No guess from LinkedIn: starts open to anything
-    expect(within(picker).getByTestId('intent-btn-open').getAttribute('aria-pressed')).toBe('true');
+    expect(within(picker).getByTestId('intent-open-status')).toBeDefined();
 
     // An alum can look for a mentor too
     fireEvent.click(screen.getByRole('button', { name: 'Alum' }));

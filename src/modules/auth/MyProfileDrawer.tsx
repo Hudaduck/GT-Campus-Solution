@@ -422,7 +422,7 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
               <Target className="w-3.5 h-3.5 text-tp-accent" />
               <span>Looking For</span>
             </h3>
-            <IntentPicker value={intents} onChange={setIntents} compact />
+            <IntentPicker value={intents} onChange={setIntents} compact viewer={user} />
           </div>
 
           {/* Section 5: Hobbies */}

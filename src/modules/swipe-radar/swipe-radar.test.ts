@@ -26,7 +26,7 @@ describe('SwipeRadarView Component', () => {
 
     // Intent badges use catalog labels; both of Alex's intents complement Sarah's (mentor + co-founder)
     const intentBadges = [...getByTestId('candidate-intents').querySelectorAll('span')];
-    expect(intentBadges.map((b) => b.textContent)).toEqual(['Co-Founder', 'Seeking Mentor']);
+    expect(intentBadges.map((b) => b.textContent)).toEqual(['Seeking Mentor', 'Co-Founder']);
     expect(intentBadges.every((b) => b.hasAttribute('data-mutual'))).toBe(true);
     expect(getAllByText('Co-Founder').length).toBeGreaterThanOrEqual(1);
     expect(getByTestId('mutual-intent-reason').textContent).toContain('Alex is looking for a mentor, and you mentor');
@@ -220,12 +220,12 @@ describe('SwipeRadarView Component', () => {
     Repository.setCurrentUser(DEMO_STUDENT_USER); // wants a co-founder + a mentor
     const { getByTestId, queryByText, getByText } = render(React.createElement(SwipeRadarView, {}));
 
-    expect(getByTestId('intent-filter-for-you').getAttribute('aria-pressed')).toBe('true');
+    expect((getByTestId('intent-filter') as HTMLSelectElement).value).toBe('for-you');
     expect(getByText(/Profile 1 of/).textContent).not.toContain('of 0');
     // Marcus (casual + find-mentor) has nothing that complements this viewer
     expect(queryByText('Marcus Vance')).toBeNull();
 
-    fireEvent.click(getByTestId('intent-filter-all'));
+    fireEvent.change(getByTestId('intent-filter'), { target: { value: 'all' } });
     // Everyone: compatible people stay first, the rest follow
     expect(getByText('Sarah Jenkins')).toBeDefined();
     const total = Number(getByText(/Profile 1 of/).textContent!.match(/of (\d+)/)![1]);
@@ -240,5 +240,30 @@ describe('SwipeRadarView Component', () => {
     expect(lines).toContain('You both want co-founders');
     const saved = Repository.getMatches()[0];
     expect(saved.mutualIntents).toEqual(['give-mentorship', 'co-founder']);
+  });
+
+  it('gold tags on the photo show only matching intents; the full profile lists all of them', () => {
+    // Sarah (viewer) mentors + wants co-founders
+    const alex = Repository.getProfiles().find((p) => p.id === 'user_alex_chen')!;
+    Repository.saveProfile({ ...alex, intents: ['find-mentor', 'co-founder', 'study', 'casual', 'roommate'] });
+    const { getByTestId, getByText } = render(React.createElement(SwipeRadarView, {}));
+
+    expect(getByText('Alex Chen')).toBeDefined();
+    const tags = [...getByTestId('candidate-intents').querySelectorAll('span')].map((t) => t.textContent);
+    expect(tags).toEqual(['Seeking Mentor', 'Co-Founder']); // study / casual / roommate don't match Sarah
+
+    fireEvent.click(getByText('Tap for full profile'));
+    const full = getByTestId('full-profile-intents');
+    expect(full.querySelectorAll('span').length).toBe(5);
+    expect(full.querySelectorAll('[data-mutual]').length).toBe(2);
+    expect(full.textContent).toContain('Housing / Roommates');
+  });
+
+  it('shows no intent tags on the photo when nothing matches', () => {
+    // A viewer who is open to anything sees everyone (Alex first) but has no intents to match
+    Repository.setCurrentUser({ ...Repository.getCurrentUser(), intents: [] });
+    const { getByText, queryByTestId } = render(React.createElement(SwipeRadarView, {}));
+    expect(getByText('Alex Chen')).toBeDefined();
+    expect(queryByTestId('candidate-intents')).toBeNull();
   });
 });

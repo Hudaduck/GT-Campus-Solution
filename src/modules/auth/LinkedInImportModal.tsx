@@ -279,7 +279,7 @@ export const LinkedInImportModal: React.FC<LinkedInImportModalProps> = ({ isOpen
 
               <section data-testid="linkedin-intents">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-tp-accent mb-1.5">Looking For</h3>
-                <IntentPicker value={draft.intents} onChange={(intents) => update({ intents })} compact />
+                <IntentPicker value={draft.intents} onChange={(intents) => update({ intents })} compact viewer={draft} />
               </section>
 
               <section>
