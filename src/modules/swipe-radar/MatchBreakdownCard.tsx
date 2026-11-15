@@ -1,5 +1,6 @@
 import React from 'react';
-import { Briefcase, Target, Sparkles, Heart } from 'lucide-react';
+import { Briefcase, Target, Sparkles, Heart, Compass } from 'lucide-react';
+import { INTENT_CATALOG, describeMutualIntent } from '../../shared/intents';
 import { SwipeCandidate, UserProfile } from '../../shared/contracts';
 
 interface MatchBreakdownCardProps {
@@ -46,6 +47,29 @@ export const MatchBreakdownCard: React.FC<MatchBreakdownCardProps> = ({ candidat
       <div className="h-2 rounded-full bg-tp-elevated overflow-hidden" aria-hidden="true">
         <div className="h-full bg-[#B39051] rounded-full transition-all" style={{ width: `${pct}%` }} />
       </div>
+
+      <section className="space-y-2" data-testid="breakdown-intents">
+        <h4 className="text-xs font-bold text-tp-ink flex items-center gap-1.5">
+          <Compass className="w-3.5 h-3.5 text-tp-accent" /> Looking for
+        </h4>
+        {candidate.intents.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {candidate.intents.map((i) => (
+              <span key={i} className="text-xs px-2.5 py-1 rounded-xl bg-tp-elevated text-tp-ink border border-[#B39051]/40 font-semibold">
+                {INTENT_CATALOG[i].label}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-tp-subtle">Open to anything.</p>
+        )}
+        {candidate.mutualIntents.map((i) => (
+          <p key={i} className="text-xs text-tp-muted">
+            <Sparkles className="inline w-3 h-3 text-tp-accent mr-1" />
+            {describeMutualIntent(i, candidate.name.split(' ')[0])}
+          </p>
+        ))}
+      </section>
 
       <section className="space-y-2">
         <h4 className="text-xs font-bold text-tp-ink flex items-center gap-1.5">

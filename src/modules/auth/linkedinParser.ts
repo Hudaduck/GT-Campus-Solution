@@ -317,7 +317,7 @@ export function parseLinkedInInput(url: string, pastedText = '', now: Date = new
     workHistory,
     targetCompanies,
     targetRoles,
-    intent: role === 'alumni' ? 'mentorship' : 'casual',
+    intents: [], // not inferable from LinkedIn (anyone can mentor or be mentored); picked in the review step
     hobbies,
     isOpenToMeet: true,
     openToMeetExpiresAt: now.getTime() + 1000 * 60 * 60 * 12,

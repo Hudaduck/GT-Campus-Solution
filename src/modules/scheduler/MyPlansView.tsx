@@ -485,12 +485,18 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                   >
                     <MessageCircle className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />Message
                   </button>
-                  <button
-                    onClick={() => handleScheduleFromMatch(match)}
-                    className="py-1.5 px-3 rounded-xl border border-[#B39051]/60 text-tp-ink font-semibold text-xs hover:bg-tp-elevated transition whitespace-nowrap"
-                  >
-                    <CalendarDays className="inline w-3.5 h-3.5 mr-1 -mt-0.5 text-tp-accent" />Schedule
-                  </button>
+                  {Repository.hasConversation(match.id, currentUser.id) ? (
+                    <button
+                      onClick={() => handleScheduleFromMatch(match)}
+                      className="py-1.5 px-3 rounded-xl border border-[#B39051]/60 text-tp-ink font-semibold text-xs hover:bg-tp-elevated transition whitespace-nowrap"
+                    >
+                      <CalendarDays className="inline w-3.5 h-3.5 mr-1 -mt-0.5 text-tp-accent" />Schedule
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-tp-subtle text-center max-w-[96px] leading-tight">
+                      Chat first to plan a meetup
+                    </span>
+                  )}
                 </div>
               </div>
             ))}

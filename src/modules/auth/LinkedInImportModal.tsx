@@ -8,6 +8,7 @@ import {
   RECOMMENDED_SCORE_THRESHOLD,
 } from '../../shared/data/repository';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
+import { IntentPicker } from '../../shared/ui/IntentPicker';
 import { useAuth } from './AuthContext';
 import { parseLinkedInInput, DEMO_LINKEDIN_PRESET, LinkedInImportResult, initialsAvatar } from './linkedinParser';
 
@@ -248,7 +249,7 @@ export const LinkedInImportModal: React.FC<LinkedInImportModalProps> = ({ isOpen
                     <button
                       key={r}
                       type="button"
-                      onClick={() => update({ role: r, intent: r === 'alumni' ? 'mentorship' : draft.intent })}
+                      onClick={() => update({ role: r })}
                       className={`px-2.5 min-h-[36px] ${draft.role === r ? 'bg-[#B39051] text-[#051E39]' : 'text-tp-muted'}`}
                     >
                       {r === 'student' ? 'Student' : 'Alum'}
@@ -275,6 +276,11 @@ export const LinkedInImportModal: React.FC<LinkedInImportModalProps> = ({ isOpen
                   className={input}
                 />
               </div>
+
+              <section data-testid="linkedin-intents">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-tp-accent mb-1.5">Looking For</h3>
+                <IntentPicker value={draft.intents} onChange={(intents) => update({ intents })} compact viewer={draft} />
+              </section>
 
               <section>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-tp-accent mb-1.5">Hobbies ({draft.hobbies.length}/5)</h3>

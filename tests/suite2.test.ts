@@ -104,7 +104,7 @@ describe('Suite 2: Unit Tests (Vitest)', () => {
       const user: UserProfile = {
         ...INITIAL_CURRENT_USER,
         hobbies: ['bouldering', 'pour-over coffee'],
-        intent: 'all',
+        intents: [],
         role: 'student',
       };
 
@@ -125,7 +125,7 @@ describe('Suite 2: Unit Tests (Vitest)', () => {
         ...INITIAL_CURRENT_USER,
         role: 'student',
         hobbies: [],
-        intent: 'mentorship',
+        intents: ['find-mentor'],
       };
 
       const alumHostedEvent: EventItem = {
@@ -146,7 +146,7 @@ describe('Suite 2: Unit Tests (Vitest)', () => {
         ...INITIAL_CURRENT_USER,
         role: 'student',
         hobbies: ['AI startups'],
-        intent: 'co-founder',
+        intents: ['co-founder'],
       };
 
       const startupEvent: EventItem = {

@@ -116,18 +116,33 @@ describe('Scheduler Module - UI Components', () => {
       matchedAt: Date.now(),
       status: 'matched',
       sharedHobbies: ['bouldering', 'pour-over coffee'],
-      mutualIntent: 'co-founder',
+      mutualIntents: ['co-founder'],
     });
 
-    const { getByText, getByRole } = render(
+    const { getByText, getByRole, queryByRole } = render(
       React.createElement(MyPlansView, {})
     );
 
     // Header rendered
     expect(getByText('My Plans & Connections')).toBeDefined();
 
-    // Pending 1-on-1 Matches section displays match
+    // Pending 1-on-1 Matches section displays match; without a chat only messaging is offered
     expect(getByText('Alex Chen')).toBeDefined();
+    expect(getByRole('button', { name: /Message/i })).toBeDefined();
+    expect(queryByRole('button', { name: /Schedule/i })).toBeNull();
+    expect(getByText('Chat first to plan a meetup')).toBeDefined();
+  });
+
+  it('unlocks Schedule in My Plans once both people have chatted', () => {
+    const partner = INITIAL_PROFILES[0];
+    const match = Repository.getOrCreateMatch(INITIAL_CURRENT_USER, partner);
+    Repository.sendMessage(match.id, INITIAL_CURRENT_USER, 'Free Thursday afternoon?');
+    // Only one side has spoken: still locked
+    expect(Repository.hasConversation(match.id, INITIAL_CURRENT_USER.id)).toBe(false);
+    Repository.sendMessage(match.id, partner, 'Thursday works!');
+    expect(Repository.hasConversation(match.id, INITIAL_CURRENT_USER.id)).toBe(true);
+
+    const { getByRole } = render(React.createElement(MyPlansView, {}));
     expect(getByRole('button', { name: /Schedule/i })).toBeDefined();
   });
 });
