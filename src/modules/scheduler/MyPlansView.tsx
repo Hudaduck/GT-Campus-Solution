@@ -7,6 +7,7 @@ import { generateIcsFile, generateGoogleCalendarUrl, downloadIcsFile, formatDura
 import { SchedulerDrawer } from './SchedulerDrawer';
 import { getCategoryLabel } from '../../shared/ui/categoryIcons';
 import { ChatDrawer } from './ChatDrawer';
+import { avatarSrc } from '../../shared/ui/avatarSrc';
 
 interface MyPlansViewProps {
   onNavigateToRadar?: () => void;
@@ -523,7 +524,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                 className="w-full flex items-center gap-3 p-3 rounded-2xl bg-tp-surface border border-[#B39051]/35 hover:border-[#B39051]/70 transition text-left"
               >
                 <img
-                  src={partner.avatarUrl}
+                  src={avatarSrc(partner.avatarUrl)}
                   alt={partner.name}
                   className="w-11 h-11 rounded-full object-cover border-2 border-[#B39051] shrink-0"
                 />
@@ -597,7 +598,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
               >
                 <div className="flex items-start gap-3">
                   <img
-                    src={match.partnerProfile.avatarUrl}
+                    src={avatarSrc(match.partnerProfile.avatarUrl)}
                     alt={match.partnerProfile.name}
                     className="w-12 h-12 rounded-full object-cover border-2 border-[#B39051] shrink-0"
                   />

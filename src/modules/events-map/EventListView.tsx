@@ -6,6 +6,7 @@ import { UserProfile } from '../../shared/contracts';
 import { Repository } from '../../shared/data/repository';
 import { getCategoryLabel } from '../../shared/ui/categoryIcons';
 import { formatDistance } from '../../shared/location';
+import { avatarSrc } from '../../shared/ui/avatarSrc';
 
 interface EventListViewProps {
   events: ScoredEventItem[];
@@ -154,7 +155,7 @@ export const EventListView: React.FC<EventListViewProps> = ({
                           {event.overlappingAttendees.map((att) => (
                             <img
                               key={att.id}
-                              src={att.avatarUrl}
+                              src={avatarSrc(att.avatarUrl)}
                               alt={att.name}
                               title={`${att.name} (${att.reason})`}
                               className="inline-block w-5 h-5 rounded-full ring-1 ring-[#B39051] object-cover"
@@ -170,7 +171,7 @@ export const EventListView: React.FC<EventListViewProps> = ({
                   <div className="flex items-center gap-2 mb-3">
                     {event.hostAvatarUrl ? (
                       <img
-                        src={event.hostAvatarUrl}
+                        src={avatarSrc(event.hostAvatarUrl)}
                         alt={event.hostName}
                         className="w-6 h-6 rounded-full object-cover border border-[#B39051]"
                       />

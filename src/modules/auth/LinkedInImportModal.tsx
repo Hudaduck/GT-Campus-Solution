@@ -11,6 +11,7 @@ import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { IntentPicker } from '../../shared/ui/IntentPicker';
 import { useAuth } from './AuthContext';
 import { parseLinkedInInput, DEMO_LINKEDIN_PRESET, LinkedInImportResult, initialsAvatar } from './linkedinParser';
+import { avatarSrc } from '../../shared/ui/avatarSrc';
 
 export interface LinkedInImportModalProps {
   isOpen?: boolean;
@@ -370,7 +371,7 @@ export const LinkedInImportModal: React.FC<LinkedInImportModalProps> = ({ isOpen
           {/* STEP 3: launched */}
           {step === 'launched' && draft && launchStats && (
             <div data-testid="linkedin-launched" className="text-center space-y-4 py-2">
-              <img src={draft.avatarUrl} alt="" className="w-20 h-20 mx-auto rounded-full border-4 border-[#B39051]" />
+              <img src={avatarSrc(draft.avatarUrl)} alt="" className="w-20 h-20 mx-auto rounded-full border-4 border-[#B39051]" />
               <div>
                 <h3 className="text-xl font-black">You're live, {draft.name.split(' ')[0]}!</h3>
                 <p className="text-xs text-tp-muted mt-1">

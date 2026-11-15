@@ -45,6 +45,7 @@ import {
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { ChatDrawer } from '../scheduler';
 import { MatchBreakdownCard } from './MatchBreakdownCard';
+import { avatarSrc } from '../../shared/ui/avatarSrc';
 
 interface SwipeRadarViewProps {
   onNavigateToPlans?: () => void;
@@ -469,7 +470,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                         : 'flex-1 min-h-[160px]'
                     }`}>
                     <img
-                      src={currentCandidate.avatarUrl}
+                      src={avatarSrc(currentCandidate.avatarUrl, 'card')}
                       alt={currentCandidate.name}
                       draggable={false}
                       className="absolute inset-0 w-full h-full object-cover object-[50%_28%]"
@@ -700,7 +701,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <img
-                        src={profile.avatarUrl}
+                        src={avatarSrc(profile.avatarUrl)}
                         alt={profile.name}
                         className="w-12 h-12 rounded-full object-cover border-2 border-[#B39051] shrink-0"
                       />
@@ -850,7 +851,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
 
             <div className="flex items-center gap-3">
               <img
-                src={currentCandidate.avatarUrl}
+                src={avatarSrc(currentCandidate.avatarUrl)}
                 alt=""
                 className="w-14 h-14 rounded-full object-cover border-2 border-[#B39051] shrink-0"
               />
@@ -1037,7 +1038,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
             {/* Avatars side-by-side */}
             <div className="flex items-center justify-center gap-3 py-2">
               <img
-                src={currentUser.avatarUrl}
+                src={avatarSrc(currentUser.avatarUrl)}
                 alt={currentUser.name}
                 className="w-16 h-16 rounded-full object-cover border-2 border-[#B39051] shadow-md"
               />
@@ -1045,7 +1046,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                 <Zap className="w-4 h-4 fill-current" />
               </div>
               <img
-                src={matchedProfile.avatarUrl}
+                src={avatarSrc(matchedProfile.avatarUrl)}
                 alt={matchedProfile.name}
                 className="w-16 h-16 rounded-full object-cover border-2 border-[#B39051] shadow-md"
               />

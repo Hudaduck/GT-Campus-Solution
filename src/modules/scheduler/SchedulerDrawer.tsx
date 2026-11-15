@@ -16,6 +16,7 @@ const MAX_LENGTH_MIN = 8 * 60;
 const addMinutes = (d: Date, min: number) => new Date(d.getTime() + min * 60 * 1000);
 import { intentLabels } from '../../shared/intents';
 import { defaultStart, fromInputs, startError, toDateInput, toTimeInput } from '../../shared/schedule';
+import { avatarSrc } from '../../shared/ui/avatarSrc';
 
 export const ONLINE_PLATFORMS: OnlinePlatform[] = ['Google Meet', 'Zoom', 'Microsoft Teams', 'Phone Call'];
 
@@ -279,7 +280,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
         <div className="bg-[#051E39] tp-on-navy px-5 py-4 border-b border-[#B39051]/35 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img
-              src={partner.avatarUrl}
+              src={avatarSrc(partner.avatarUrl)}
               alt={partner.name}
               className="w-11 h-11 rounded-full object-cover border-2 border-[#B39051]"
             />

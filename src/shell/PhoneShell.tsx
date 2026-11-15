@@ -5,6 +5,7 @@ import { BrandMark } from '../shared/ui/BrandMark';
 import { useAuth, DemoRoleSwitcher } from '../modules/auth';
 import { ModuleOutlet, AppTab } from './ModuleOutlet';
 import { useUnreadCount, unreadBadgeClass } from '../shared/ui/useUnreadCount';
+import { avatarSrc } from '../shared/ui/avatarSrc';
 
 interface PhoneShellProps {
   activeTab: AppTab;
@@ -58,7 +59,7 @@ export const PhoneShell: React.FC<PhoneShellProps> = ({
             className="w-11 h-11 shrink-0 rounded-full border-2 border-[#B39051] overflow-hidden bg-tp-surface flex items-center justify-center text-tp-accent font-black"
           >
             {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
+              <img src={avatarSrc(user.avatarUrl)} alt="" className="w-full h-full object-cover" />
             ) : (
               user.name?.[0] ?? 'GT'
             )}

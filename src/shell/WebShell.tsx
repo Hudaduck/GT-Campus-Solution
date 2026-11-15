@@ -8,6 +8,7 @@ import { ViewModeToggle } from './ViewModeToggle';
 import { ResetDemoButton } from '../shared/ui/ResetDemoButton';
 import { useUnreadCount, unreadBadgeClass } from '../shared/ui/useUnreadCount';
 import { PresenterView } from './useViewMode';
+import { avatarSrc } from '../shared/ui/avatarSrc';
 
 interface WebShellProps {
   activeTab: AppTab;
@@ -98,7 +99,7 @@ export const WebShell: React.FC<WebShellProps> = ({
             className="w-full flex items-center gap-2.5 px-2 min-h-[48px] rounded-xl bg-tp-surface border border-[#B39051]/35 hover:border-[#B39051] transition text-left"
           >
             {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover border border-[#B39051]" />
+              <img src={avatarSrc(user.avatarUrl)} alt="" className="w-8 h-8 rounded-full object-cover border border-[#B39051]" />
             ) : (
               <UserCircle2 className="w-8 h-8 text-tp-accent" />
             )}

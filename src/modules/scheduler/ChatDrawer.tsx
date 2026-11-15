@@ -5,6 +5,7 @@ import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { Repository, getSharedHobbies } from '../../shared/data/repository';
 import { SchedulerDrawer } from './SchedulerDrawer';
 import { formatDuration } from './calendarUtils';
+import { avatarSrc } from '../../shared/ui/avatarSrc';
 
 interface ChatDrawerProps {
   isOpen: boolean;
@@ -172,7 +173,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, partner
         <div className="bg-[#051E39] tp-on-navy px-5 py-3 border-b border-[#B39051]/35 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <img
-              src={partner.avatarUrl}
+              src={avatarSrc(partner.avatarUrl)}
               alt={partner.name}
               className="w-10 h-10 rounded-full object-cover border-2 border-[#B39051]"
             />

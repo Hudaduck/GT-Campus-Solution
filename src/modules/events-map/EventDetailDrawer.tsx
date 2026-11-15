@@ -6,6 +6,7 @@ import { UserProfile } from '../../shared/contracts';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { Repository } from '../../shared/data/repository';
 import { getCategoryLabel } from '../../shared/ui/categoryIcons';
+import { avatarSrc } from '../../shared/ui/avatarSrc';
 
 interface EventDetailDrawerProps {
   event: ScoredEventItem | null;
@@ -122,7 +123,7 @@ export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({
           <div className="relative">
             {event.hostAvatarUrl ? (
               <img
-                src={event.hostAvatarUrl}
+                src={avatarSrc(event.hostAvatarUrl)}
                 alt={event.hostName}
                 className="w-12 h-12 rounded-full object-cover border-2 border-[#B39051]"
               />
@@ -181,7 +182,7 @@ export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({
                     {event.overlappingAttendees.map((att) => (
                       <img
                         key={att.id}
-                        src={att.avatarUrl}
+                        src={avatarSrc(att.avatarUrl)}
                         alt={att.name}
                         title={`${att.name}: ${att.reason}`}
                         className="inline-block w-6 h-6 rounded-full ring-2 ring-[#051E39] object-cover"

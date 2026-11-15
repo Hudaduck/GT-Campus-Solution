@@ -11,6 +11,7 @@ import { HobbyCombobox } from '../../shared/ui/HobbyCombobox';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { IntentPicker } from '../../shared/ui/IntentPicker';
 import { LinkedInImportButton } from './LinkedInImportModal';
+import { avatarSrc } from '../../shared/ui/avatarSrc';
 
 export interface MyProfileDrawerProps {
   isOpen: boolean;
@@ -152,7 +153,7 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
             <div className="relative">
               {user.avatarUrl ? (
                 <img
-                  src={user.avatarUrl}
+                  src={avatarSrc(user.avatarUrl)}
                   alt={user.name}
                   className="w-12 h-12 rounded-full object-cover border-2 border-[#B39051]"
                 />
