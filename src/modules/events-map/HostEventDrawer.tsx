@@ -21,10 +21,10 @@ const TTL_OPTIONS: { label: string; hours: number; description: string }[] = [
 ];
 
 const CATEGORIES: { id: EventCategory; label: string }[] = [
-  { id: 'coffee', label: 'Coffee & Chat' },
+  { id: 'coffee', label: 'Casual' },
   { id: 'startup', label: 'AI & Startups' },
   { id: 'tech', label: 'Tech & Code' },
-  { id: 'sports', label: 'Climb & Sports' },
+  { id: 'sports', label: 'Sports' },
   { id: 'study', label: 'Study Cram' },
   { id: 'social', label: 'Social & Games' },
   { id: 'networking', label: 'Alumni & Mentorship' },

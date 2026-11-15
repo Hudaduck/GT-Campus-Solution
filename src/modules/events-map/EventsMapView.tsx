@@ -182,9 +182,9 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
 
   const categories: { id: string; label: string }[] = [
     { id: 'all', label: 'All Events' },
-    { id: 'coffee', label: 'Coffee' },
+    { id: 'coffee', label: 'Casual' },
     { id: 'startup', label: 'Startups & AI' },
-    { id: 'sports', label: 'Sports & Climb' },
+    { id: 'sports', label: 'Sports' },
     { id: 'study', label: 'Study Cram' },
     { id: 'social', label: 'Social & Games' },
     { id: 'networking', label: 'Networking' },

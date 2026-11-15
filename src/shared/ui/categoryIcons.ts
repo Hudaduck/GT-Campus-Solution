@@ -6,8 +6,8 @@ import {
   LayoutGrid,
   Laptop,
   LucideIcon,
-  Mountain,
   Rocket,
+  Volleyball,
 } from 'lucide-react';
 
 // One icon per event category, shared by filter chips, the host form and map pins
@@ -16,7 +16,7 @@ export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   coffee: Coffee,
   tech: Laptop,
   startup: Rocket,
-  sports: Mountain,
+  sports: Volleyball,
   study: BookOpen,
   social: Dices,
   networking: Handshake,
