@@ -34,7 +34,7 @@ export const ModuleOutlet: React.FC<ModuleOutletProps> = ({ activeTab, layout, o
     )}
 
     {activeTab === 'swipe' && (
-      <ModuleErrorBoundary moduleName="1-on-1 Swipe Radar" fallbackTitle="Swipe Radar is currently recovering">
+      <ModuleErrorBoundary moduleName="Connect 1-on-1" fallbackTitle="Connect 1-on-1 is currently recovering">
         <Suspense fallback={<ModuleLoading />}>
           <SwipeRadarView
             layout={layout}

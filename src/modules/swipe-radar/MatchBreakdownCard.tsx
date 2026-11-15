@@ -6,13 +6,12 @@ import { SwipeCandidate, UserProfile } from '../../shared/contracts';
 interface MatchBreakdownCardProps {
   candidate: SwipeCandidate | null;
   viewer: UserProfile;
-  upNext: SwipeCandidate[];
 }
 
 const MAX_SCORE = 100;
 
 // Desktop-only side panel explaining *why* the current swipe card is a match
-export const MatchBreakdownCard: React.FC<MatchBreakdownCardProps> = ({ candidate, viewer, upNext }) => {
+export const MatchBreakdownCard: React.FC<MatchBreakdownCardProps> = ({ candidate, viewer }) => {
   if (!candidate) {
     return (
       <aside className="bg-tp-surface border border-[#B39051]/35 rounded-3xl p-6 text-sm text-tp-muted">
@@ -144,21 +143,6 @@ export const MatchBreakdownCard: React.FC<MatchBreakdownCardProps> = ({ candidat
           </p>
         )}
       </section>
-
-      {upNext.length > 0 && (
-        <section className="pt-3 border-t border-[#B39051]/35">
-          <h4 className="text-[11px] font-bold uppercase tracking-wider text-tp-accent mb-2">Up next</h4>
-          <div className="space-y-2">
-            {upNext.map((p) => (
-              <div key={p.id} className="flex items-center gap-2.5 text-xs">
-                <img src={p.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover border border-[#B39051]/50" />
-                <span className="text-tp-ink font-semibold truncate">{p.name}</span>
-                <span className="text-tp-subtle truncate">{p.careerBadges[0]?.label || p.major}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </aside>
   );
 };

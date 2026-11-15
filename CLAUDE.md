@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-ThirdPlace ("Your Campus, Everywhere"): a Georgia Tech–branded React + TypeScript + Vite PWA that connects students and alumni through pop-up events on a map, a 1-on-1 swipe matcher, and a meetup scheduler. There is no backend; all data is seeded in code and persisted in `localStorage`.
+ThirdPlace ("Your Campus, Everywhere"): a Georgia Tech–branded React + TypeScript + Vite PWA that connects students and alumni through pop-up events on a map, a 1-on-1 matcher (Pass / Connect buttons, no drag gestures), and a meetup scheduler. There is no backend; all data is seeded in code and persisted in `localStorage`.
 
 ## Commands
 

@@ -17,7 +17,7 @@ interface WebShellProps {
 
 const NAV: { id: AppTab; label: string; subtitle: string; Icon: typeof MapPin }[] = [
   { id: 'map', label: 'Map Radar', subtitle: 'Recommended pop-ups', Icon: MapPin },
-  { id: 'swipe', label: '1-on-1 Swipe', subtitle: 'Career & hobby matches', Icon: Users },
+  { id: 'swipe', label: 'Connect 1-on-1', subtitle: 'Career & hobby matches', Icon: Users },
   { id: 'plans', label: 'My Plans', subtitle: 'Meetups & RSVPs', Icon: Calendar },
 ];
 
