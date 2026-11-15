@@ -1,5 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Dedicated port + --strictPort: e2e must never attach to some other dev server
+// (e.g. another checkout running `npm run dev` on Vite's default 5173).
+const E2E_PORT = Number(process.env.E2E_PORT) || 5180;
+const BASE_URL = `http://localhost:${E2E_PORT}`;
+
 export default defineConfig({
   testDir: './tests',
   testMatch: /.*\.spec\.ts/,
@@ -9,13 +14,13 @@ export default defineConfig({
   workers: 1,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: BASE_URL,
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'npm.cmd run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: true,
+    command: `npx vite --port ${E2E_PORT} --strictPort`,
+    url: BASE_URL,
+    reuseExistingServer: !process.env.CI,
     timeout: 30000,
   },
   projects: [
