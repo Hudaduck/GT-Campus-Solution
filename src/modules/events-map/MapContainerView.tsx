@@ -1,9 +1,5 @@
-import React, { useMemo } from 'react';
-import { getCategoryIcon, getCategoryLabel } from '../../shared/ui/categoryIcons';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import React, { useCallback, useEffect, useMemo } from 'react';
-import { getCategoryIcon } from '../../shared/ui/categoryIcons';
+import { getCategoryIcon, getCategoryLabel } from '../../shared/ui/categoryIcons';
 import { iconToSvgMarkup } from '../../shared/ui/iconMarkup';
 import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, Pane, useMap } from 'react-leaflet';
 import L from 'leaflet';

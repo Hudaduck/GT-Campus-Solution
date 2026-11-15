@@ -1427,15 +1427,16 @@ export class Repository {
     if (this.isSafeStorageAvailable()) {
       try {
         const data = localStorage.getItem(STORAGE_KEYS.MATCHES);
-        if (data) return this.dedupeMatches(JSON.parse(data));
         if (data) {
-          return (JSON.parse(data) as (MatchItem & { mutualIntent?: string })[]).map(
+          // Upgrade legacy records (single `mutualIntent`, old profile shape), then merge duplicates
+          const normalized = (JSON.parse(data) as (MatchItem & { mutualIntent?: string })[]).map(
             ({ mutualIntent: _legacy, ...m }) => ({
               ...m,
               partnerProfile: normalizeProfile(m.partnerProfile),
               mutualIntents: Array.isArray(m.mutualIntents) ? m.mutualIntents : [],
             })
           );
+          return this.dedupeMatches(normalized);
         }
       } catch (e) {
         console.warn('Error reading matches:', e);
@@ -1506,14 +1507,6 @@ export class Repository {
         console.warn('Error saving meetup:', e);
       }
     }
-  }
-
-  // Existing match between the viewer and a partner (either direction), if any
-  static findMatchWith(viewerId: string, partnerId: string): MatchItem | undefined {
-    return this.getMatches().find(
-      (m) =>
-        (m.user1Id === viewerId && m.user2Id === partnerId) || (m.user1Id === partnerId && m.user2Id === viewerId)
-    );
   }
 
   // Messaging needs a match id; Re-Connect contacts may not have one yet
@@ -1642,7 +1635,8 @@ export class Repository {
         localStorage.removeItem(STORAGE_KEYS.SWIPES);
         localStorage.removeItem(STORAGE_KEYS.MEETUPS);
         localStorage.removeItem(STORAGE_KEYS.MESSAGES);
-        localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(INITIAL_EVENTS));
+        // Fresh seed times relative to *now* (INITIAL_EVENTS is stamped once at module load)
+        localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(buildInitialEvents(Date.now())));
         localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(INITIAL_PROFILES));
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(INITIAL_CURRENT_USER));
       } catch (e) {

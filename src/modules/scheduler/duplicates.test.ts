@@ -18,7 +18,7 @@ const match = (id: string, partner = alex, overrides: Partial<MatchItem> = {}): 
   matchedAt: Date.now(),
   status: 'matched',
   sharedHobbies: [],
-  mutualIntent: partner.intent,
+  mutualIntents: [],
   ...overrides,
 });
 

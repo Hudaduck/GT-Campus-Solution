@@ -483,12 +483,6 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleScheduleFromMatch(match)}
-                  className="w-full min-h-[40px] px-3 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition whitespace-nowrap shadow-md"
-                >
-                  <Coffee className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />Schedule
-                </button>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setChatPartner(match.partnerProfile)}
