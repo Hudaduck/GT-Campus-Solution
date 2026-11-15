@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarDays, Coffee, Zap, MapPin, Clock, Download, Ticket, Map as MapIcon, Users, MessageCircle, Video } from 'lucide-react';
+import { CalendarDays, CalendarPlus, Coffee, Zap, MapPin, Clock, Download, Ticket, Map as MapIcon, Users, MessageCircle, Video } from 'lucide-react';
 import { EventItem, MatchItem, CalendarMeetup, UserProfile } from '../../shared/contracts';
 import { Repository, USER_CHANGED_EVENT, isSamePerson } from '../../shared/data/repository';
 import { LayoutMode } from '../../shared/ui/layout';
@@ -349,9 +349,9 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                           href={meetup.googleCalendarUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex-1 py-1.5 px-2.5 rounded-lg bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition text-center"
+                          className="flex-1 py-1.5 px-2.5 rounded-lg bg-[#B39051] text-[#051E39] font-bold text-xs whitespace-nowrap hover:bg-[#8F713D] active:bg-[#8F713D] transition text-center"
                         >
-                          Google Cal
+                          <CalendarPlus className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />Google Calendar
                         </a>
                       )}
                     </div>
@@ -486,9 +486,9 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                         href={googleCalUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 py-1.5 px-2.5 rounded-lg bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition text-center"
+                        className="flex-1 py-1.5 px-2.5 rounded-lg bg-[#B39051] text-[#051E39] font-bold text-xs whitespace-nowrap hover:bg-[#8F713D] active:bg-[#8F713D] transition text-center"
                       >
-                        Google Cal
+                        <CalendarPlus className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />Google Calendar
                       </a>
                       <button
                         onClick={() => handleCancelRsvp(event.id)}
