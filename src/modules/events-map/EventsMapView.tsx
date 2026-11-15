@@ -193,9 +193,9 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
 
   const categories: { id: string; label: string }[] = [
     { id: 'all', label: 'All Events' },
-    { id: 'coffee', label: 'Coffee' },
+    { id: 'coffee', label: 'Casual' },
     { id: 'startup', label: 'Startups & AI' },
-    { id: 'sports', label: 'Sports & Climb' },
+    { id: 'sports', label: 'Sports' },
     { id: 'study', label: 'Study Cram' },
     { id: 'social', label: 'Social & Games' },
     { id: 'networking', label: 'Networking' },
@@ -274,7 +274,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
             className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-black bg-[#B39051] text-[#051E39] hover:bg-[#8F713D] active:bg-[#8F713D] border-2 border-[#B39051] shadow-md transition active:scale-95"
           >
             <Plus className="w-4 h-4 text-[#051E39]" />
-            <span>Host Pop-Up</span>
+            <span>Schedule Pop-Up</span>
           </button>
         </div>
       </div>

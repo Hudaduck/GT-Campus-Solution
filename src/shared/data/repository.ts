@@ -1395,10 +1395,39 @@ export class Repository {
     }
   }
 
+  // One match per pair of people, regardless of who swiped first
+  private static pairKey(m: Pick<MatchItem, 'user1Id' | 'user2Id'>): string {
+    return [m.user1Id, m.user2Id].sort().join('|');
+  }
+
+  /**
+   * Collapses duplicate matches for the same pair (older builds created a new match on every
+   * Connect). Keeps the first-saved record's id and the furthest-along status.
+   */
+  private static dedupeMatches(matches: MatchItem[]): MatchItem[] {
+    const byPair = new Map<string, MatchItem>();
+    // Stored newest-first; walk oldest-first so the original match id survives
+    for (const m of [...matches].reverse()) {
+      const key = this.pairKey(m);
+      const prev = byPair.get(key);
+      if (!prev) {
+        byPair.set(key, m);
+      } else {
+        byPair.set(key, {
+          ...prev,
+          partnerProfile: m.partnerProfile, // freshest profile snapshot
+          status: prev.status === 'scheduled' || m.status === 'scheduled' ? 'scheduled' : m.status,
+        });
+      }
+    }
+    return [...byPair.values()].reverse();
+  }
+
   static getMatches(): MatchItem[] {
     if (this.isSafeStorageAvailable()) {
       try {
         const data = localStorage.getItem(STORAGE_KEYS.MATCHES);
+        if (data) return this.dedupeMatches(JSON.parse(data));
         if (data) {
           return (JSON.parse(data) as (MatchItem & { mutualIntent?: string })[]).map(
             ({ mutualIntent: _legacy, ...m }) => ({
@@ -1415,9 +1444,26 @@ export class Repository {
     return [];
   }
 
+  // Existing match between two people (either direction), if any
+  static findMatchWith(viewerId: string, partnerId: string): MatchItem | undefined {
+    const key = this.pairKey({ user1Id: viewerId, user2Id: partnerId });
+    return this.getMatches().find((m) => this.pairKey(m) === key);
+  }
+
+  /** Saves a match; a match for a pair that already has one updates it instead of duplicating. */
   static saveMatch(match: MatchItem): void {
     const matches = this.getMatches();
-    const updated = [match, ...matches.filter((m) => m.id !== match.id)];
+    const existing = matches.find((m) => m.id === match.id || this.pairKey(m) === this.pairKey(match));
+    const merged: MatchItem = existing
+      ? {
+          ...existing,
+          ...match,
+          id: existing.id,
+          // never downgrade a scheduled match back to pending
+          status: existing.status === 'scheduled' && match.status === 'matched' ? 'scheduled' : match.status,
+        }
+      : match;
+    const updated = [merged, ...matches.filter((m) => m !== existing)];
     if (this.isSafeStorageAvailable()) {
       try {
         localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(updated));
@@ -1427,11 +1473,21 @@ export class Repository {
     }
   }
 
+  // One upcoming meetup per person: stored newest-first, so the first one seen per partner wins
+  private static dedupeMeetups(meetups: CalendarMeetup[]): CalendarMeetup[] {
+    const seen = new Set<string>();
+    return meetups.filter((m) => {
+      if (seen.has(m.partnerId)) return false;
+      seen.add(m.partnerId);
+      return true;
+    });
+  }
+
   static getScheduledMeetups(): CalendarMeetup[] {
     if (this.isSafeStorageAvailable()) {
       try {
         const data = localStorage.getItem(STORAGE_KEYS.MEETUPS);
-        if (data) return JSON.parse(data);
+        if (data) return this.dedupeMeetups(JSON.parse(data));
       } catch (e) {
         console.warn('Error reading meetups:', e);
       }
@@ -1439,9 +1495,10 @@ export class Repository {
     return [];
   }
 
+  /** Saves a meetup. Scheduling the same person again reschedules (replaces) their meetup. */
   static saveScheduledMeetup(meetup: CalendarMeetup): void {
     const meetups = this.getScheduledMeetups();
-    const updated = [meetup, ...meetups.filter((m) => m.id !== meetup.id)];
+    const updated = [meetup, ...meetups.filter((m) => m.id !== meetup.id && m.partnerId !== meetup.partnerId)];
     if (this.isSafeStorageAvailable()) {
       try {
         localStorage.setItem(STORAGE_KEYS.MEETUPS, JSON.stringify(updated));

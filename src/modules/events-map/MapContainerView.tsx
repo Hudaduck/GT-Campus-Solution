@@ -1,3 +1,7 @@
+import React, { useMemo } from 'react';
+import { getCategoryIcon, getCategoryLabel } from '../../shared/ui/categoryIcons';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { getCategoryIcon } from '../../shared/ui/categoryIcons';
 import { iconToSvgMarkup } from '../../shared/ui/iconMarkup';
@@ -243,7 +247,7 @@ export const MapContainerView: React.FC<MapContainerViewProps> = ({
                     <span className="text-emerald-700">
                       {isAttending ? 'Attending' : `${spotsLeft} spots left`}
                     </span>
-                    <span className="text-tp-subtle capitalize">{event.category}</span>
+                    <span className="text-tp-subtle">{getCategoryLabel(event.category)}</span>
                   </div>
                   <button
                     onClick={() => onSelectEvent(event)}

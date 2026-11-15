@@ -5,6 +5,7 @@ import { Repository, USER_CHANGED_EVENT } from '../../shared/data/repository';
 import { LayoutMode } from '../../shared/ui/layout';
 import { generateIcsFile, generateGoogleCalendarUrl, downloadIcsFile } from './calendarUtils';
 import { SchedulerDrawer } from './SchedulerDrawer';
+import { getCategoryLabel } from '../../shared/ui/categoryIcons';
 import { ChatDrawer } from './ChatDrawer';
 
 interface MyPlansViewProps {
@@ -93,7 +94,9 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
     setIsSchedulerOpen(true);
   };
 
-  const pendingMatches = matches.filter((m) => m.status === 'matched');
+  // Someone you already have a meetup with isn't "pending" anymore
+  const scheduledPartners = new Set(meetups.map((m) => m.partnerId));
+  const pendingMatches = matches.filter((m) => m.status === 'matched' && !scheduledPartners.has(m.partnerProfile.id));
 
   // Web "All" view is a two-column dashboard: 1-on-1s + matches left, event RSVPs right
   const isDashboard = layout === 'web' && activeTab === 'all';
@@ -367,9 +370,9 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#051E39] tp-on-navy text-tp-accent border border-[#B39051]/30 inline-block mb-1">
-                            {event.category}
+                            {getCategoryLabel(event.category)}
                           </span>
-                          <h4 className="font-bold text-tp-ink text-sm line-clamp-1">
+                          <h4 className="font-bold text-tp-ink text-sm leading-snug line-clamp-2">
                             {event.title}
                           </h4>
                         </div>
@@ -480,6 +483,12 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                   </div>
                 </div>
 
+                <button
+                  onClick={() => handleScheduleFromMatch(match)}
+                  className="w-full min-h-[40px] px-3 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition whitespace-nowrap shadow-md"
+                >
+                  <Coffee className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />Schedule
+                </button>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setChatPartner(match.partnerProfile)}

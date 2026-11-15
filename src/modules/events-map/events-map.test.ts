@@ -167,37 +167,49 @@ describe('EventsMapView Module', () => {
     expect(screen.getByText(/Link Copied to Clipboard/i)).toBeDefined();
   });
 
-  it('hosts a new pop-up event with custom TTL and persists to repository', async () => {
+  it('schedules a pop-up for a chosen date/time instead of making it live now', async () => {
     renderWithBrand(React.createElement(EventsMapView));
-
-    // Open Host drawer
     fireEvent.click(screen.getByTestId('open-host-event-button'));
-    expect(screen.getByTestId('host-event-drawer')).toBeDefined();
+    expect(screen.getByText('Schedule a Campus Pop-Up')).toBeDefined();
 
-    // Fill form
-    const titleInput = screen.getByTestId('event-title-input');
-    const locInput = screen.getByTestId('event-location-input');
+    fireEvent.change(screen.getByTestId('event-title-input'), { target: { value: 'Midnight Tech Green Star Gazing' } });
+    fireEvent.change(screen.getByTestId('event-location-input'), { target: { value: 'Tech Green Lawn' } });
 
-    fireEvent.change(titleInput, { target: { value: 'Midnight Tech Green Star Gazing' } });
-    fireEvent.change(locInput, { target: { value: 'Tech Green Lawn' } });
+    // Tomorrow at 9:00 PM, for 3 hours
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const ymd = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+    fireEvent.change(screen.getByTestId('event-date-input'), { target: { value: ymd } });
+    fireEvent.change(screen.getByTestId('event-time-input'), { target: { value: '21:00' } });
+    fireEvent.click(screen.getByTestId('duration-option-3'));
+    expect(screen.getByTestId('event-start-preview').textContent).toMatch(/Starts tomorrow · 9:00/);
+    expect(screen.getByTestId('publish-event-button').textContent).toMatch(/Schedule Pop-Up · tomorrow · 9:00/);
 
-    // Select 8 Hours TTL
-    const ttlOption = screen.getByTestId('ttl-option-8');
-    fireEvent.click(ttlOption);
-
-    // Submit form
-    const publishButton = screen.getByTestId('publish-event-button');
     await act(async () => {
-      fireEvent.click(publishButton);
+      fireEvent.click(screen.getByTestId('publish-event-button'));
     });
 
-    // Verify event is in repository
-    const events = Repository.getEvents();
-    const created = events.find((e) => e.title === 'Midnight Tech Green Star Gazing');
+    const created = Repository.getEvents().find((e) => e.title === 'Midnight Tech Green Star Gazing')!;
     expect(created).toBeDefined();
-    expect(created!.locationName).toBe('Tech Green Lawn');
-    expect(created!.ttlHours).toBe(8);
-    expect(created!.expiresAt).toBeGreaterThan(Date.now());
+    const start = new Date(created.startTime);
+    expect(start.getDate()).toBe(tomorrow.getDate());
+    expect(start.getHours()).toBe(21);
+    expect(new Date(created.endTime).getTime() - start.getTime()).toBe(3 * 60 * 60 * 1000);
+    expect(created.expiresAt).toBe(new Date(created.endTime).getTime()); // leaves the map when it ends
+    expect(created.ttlHours).toBe(3);
+  });
+
+  it('rejects a start time in the past', () => {
+    renderWithBrand(React.createElement(EventsMapView));
+    fireEvent.click(screen.getByTestId('open-host-event-button'));
+    fireEvent.change(screen.getByTestId('event-title-input'), { target: { value: 'Too Late Meetup' } });
+    fireEvent.change(screen.getByTestId('event-location-input'), { target: { value: 'CULC' } });
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const ymd = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    fireEvent.change(screen.getByTestId('event-date-input'), { target: { value: ymd } });
+    fireEvent.click(screen.getByTestId('publish-event-button'));
+    expect(screen.getByText('Pick a start time in the future')).toBeDefined();
+    expect(Repository.getEvents().some((e) => e.title === 'Too Late Meetup')).toBe(false);
   });
 
   it('generates high-contrast Leaflet divIcon with Navy (#051E39) and Gold (#B39051)', () => {

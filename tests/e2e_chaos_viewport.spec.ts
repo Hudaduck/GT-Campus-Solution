@@ -91,7 +91,7 @@ test.describe('Suite 3: E2E Core User Flows', () => {
     await hostBtn.click();
 
     // Host Drawer opens
-    await expect(page.locator('text=Host a Campus Pop-Up')).toBeVisible();
+    await expect(page.locator('text=Schedule a Campus Pop-Up')).toBeVisible();
 
     // Fill in title and location
     await page.fill('[data-testid="event-title-input"]', 'Midtown Hackathon & Coffee');
@@ -103,6 +103,7 @@ test.describe('Suite 3: E2E Core User Flows', () => {
     await createBtn.click();
 
     // Verify drawer closed and event was created
+    await expect(page.locator('text=Schedule a Campus Pop-Up')).not.toBeVisible();
     await expect(page.locator('text=Host a Campus Pop-Up')).not.toBeVisible();
     await expect(page.locator('text=Midtown Hackathon & Coffee').first()).toBeVisible();
   });
