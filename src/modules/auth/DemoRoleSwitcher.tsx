@@ -76,10 +76,10 @@ export const DemoRoleSwitcher: React.FC<DemoRoleSwitcherProps> = ({
           <span
             data-testid="verification-badge"
             className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#8F713D] text-white border border-[#8F713D]"
-            title="Verified via LinkedIn profile"
+            title="LinkedIn profile linked (not identity-verified)"
           >
             <UserCheck className="w-3 h-3 text-white" />
-            <span>LinkedIn Verified</span>
+            <span>LinkedIn Linked</span>
           </span>
         );
       case 'peer_vouch':

@@ -411,6 +411,28 @@ export const INITIAL_PROFILES: UserProfile[] = [
   },
 ];
 
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * Demo pop-ups start at sensible, round times: on the hour, during the day (roughly 9 AM-9 PM).
+ * Mornings/early afternoons schedule them later today; afternoons/nights roll them to tomorrow
+ * starting 9 AM. Offsets keep the seeds' relative order. They leave the map when they end.
+ */
+export function seedTimes(now: number, startOffsetHours: number, durationHours: number) {
+  const anchor = new Date(now);
+  anchor.setMinutes(0, 0, 0);
+  anchor.setHours(anchor.getHours() + 1); // next full hour
+  if (anchor.getHours() < 8) {
+    anchor.setHours(7); // 7 AM today -> first seed ~9 AM
+  } else if (anchor.getHours() > 13) {
+    anchor.setDate(anchor.getDate() + 1);
+    anchor.setHours(7); // tomorrow morning
+  }
+  const start = anchor.getTime() + startOffsetHours * HOUR_MS;
+  const end = start + durationHours * HOUR_MS;
+  return { startTime: new Date(start).toISOString(), endTime: new Date(end).toISOString(), expiresAt: end };
+}
+
 // Seed pop-ups, timed relative to `now` so they can be re-issued when they expire
 export function buildInitialEvents(now: number = Date.now()): EventItem[] {
   return [
@@ -426,10 +448,8 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
       lat: 33.7788,
       lng: -84.3845,
       neighborhoodZone: 'Midtown • Peachtree Pl',
-      startTime: new Date(now + 1000 * 60 * 60 * 3).toISOString(),
-      endTime: new Date(now + 1000 * 60 * 60 * 6).toISOString(),
+      ...seedTimes(now, 3, 3),
       ttlHours: 8,
-      expiresAt: now + 1000 * 60 * 60 * 8,
       createdAt: now - 1000 * 60 * 60 * 2,
       category: 'startup',
       maxAttendees: 15,
@@ -449,10 +469,8 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
       lat: 33.7745,
       lng: -84.3872,
       neighborhoodZone: 'Midtown • West Peachtree',
-      startTime: new Date(now + 1000 * 60 * 60 * 5).toISOString(),
-      endTime: new Date(now + 1000 * 60 * 60 * 8).toISOString(),
+      ...seedTimes(now, 5, 3),
       ttlHours: 12,
-      expiresAt: now + 1000 * 60 * 60 * 12,
       createdAt: now - 1000 * 60 * 30,
       category: 'sports',
       maxAttendees: 12,
@@ -472,10 +490,8 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
       lat: 33.7765,
       lng: -84.3888,
       neighborhoodZone: 'Tech Square • 5th St',
-      startTime: new Date(now + 1000 * 60 * 60 * 7).toISOString(),
-      endTime: new Date(now + 1000 * 60 * 60 * 10).toISOString(),
+      ...seedTimes(now, 7, 3),
       ttlHours: 10,
-      expiresAt: now + 1000 * 60 * 60 * 10,
       createdAt: now - 1000 * 60 * 120,
       category: 'networking',
       maxAttendees: 20,
@@ -495,10 +511,8 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
       lat: 33.7850,
       lng: -84.3735,
       neighborhoodZone: 'Piedmont Park',
-      startTime: new Date(now + 1000 * 60 * 60 * 4).toISOString(),
-      endTime: new Date(now + 1000 * 60 * 60 * 6).toISOString(),
+      ...seedTimes(now, 4, 2),
       ttlHours: 6,
-      expiresAt: now + 1000 * 60 * 60 * 6,
       createdAt: now - 1000 * 60 * 90,
       category: 'sports',
       maxAttendees: 18,
@@ -518,10 +532,8 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
       lat: 33.7828,
       lng: -84.4075,
       neighborhoodZone: 'West Midtown • Howell Mill',
-      startTime: new Date(now + 1000 * 60 * 60 * 2).toISOString(),
-      endTime: new Date(now + 1000 * 60 * 60 * 5).toISOString(),
+      ...seedTimes(now, 2, 3),
       ttlHours: 7,
-      expiresAt: now + 1000 * 60 * 60 * 7,
       createdAt: now - 1000 * 60 * 45,
       category: 'study',
       maxAttendees: 8,
@@ -541,10 +553,8 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
       lat: 33.7749,
       lng: -84.3964,
       neighborhoodZone: 'Central Campus • Tech Green',
-      startTime: new Date(now + 1000 * 60 * 60 * 8).toISOString(),
-      endTime: new Date(now + 1000 * 60 * 60 * 12).toISOString(),
+      ...seedTimes(now, 8, 4),
       ttlHours: 14,
-      expiresAt: now + 1000 * 60 * 60 * 14,
       createdAt: now - 1000 * 60 * 10,
       category: 'study',
       maxAttendees: 10,
@@ -564,10 +574,8 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
       lat: 33.7758,
       lng: -84.3922,
       neighborhoodZone: 'East Campus • Fowler St',
-      startTime: new Date(now + 1000 * 60 * 60 * 6).toISOString(),
-      endTime: new Date(now + 1000 * 60 * 60 * 9).toISOString(),
+      ...seedTimes(now, 6, 3),
       ttlHours: 9,
-      expiresAt: now + 1000 * 60 * 60 * 9,
       createdAt: now - 1000 * 60 * 60,
       category: 'sports',
       maxAttendees: 12,
@@ -587,10 +595,8 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
       lat: 33.7761,
       lng: -84.3875,
       neighborhoodZone: 'Tech Square • Spring St',
-      startTime: new Date(now + 1000 * 60 * 60 * 4).toISOString(),
-      endTime: new Date(now + 1000 * 60 * 60 * 7).toISOString(),
+      ...seedTimes(now, 4, 3),
       ttlHours: 8,
-      expiresAt: now + 1000 * 60 * 60 * 8,
       createdAt: now - 1000 * 60 * 40,
       category: 'social',
       maxAttendees: 16,
@@ -756,7 +762,6 @@ export const HOBBY_ECOSYSTEM_PROFILES: UserProfile[] = [
 
 // Built on demand so start/expiry times are always relative to "now"
 export function buildHobbyEcosystemEvents(now: number = Date.now()): EventItem[] {
-  const hours = (h: number) => now + 1000 * 60 * 60 * h;
   const [jasmine, , nina] = HOBBY_ECOSYSTEM_PROFILES;
   return [
     {
@@ -772,10 +777,8 @@ export function buildHobbyEcosystemEvents(now: number = Date.now()): EventItem[]
       lat: 33.787,
       lng: -84.3737,
       neighborhoodZone: 'Piedmont Park',
-      startTime: new Date(hours(2)).toISOString(),
-      endTime: new Date(hours(4)).toISOString(),
+      ...seedTimes(now, 2, 2),
       ttlHours: 6,
-      expiresAt: hours(6),
       createdAt: now,
       category: 'sports',
       maxAttendees: 16,
@@ -796,10 +799,8 @@ export function buildHobbyEcosystemEvents(now: number = Date.now()): EventItem[]
       lat: 33.7838,
       lng: -84.3836,
       neighborhoodZone: 'Midtown • Colony Square',
-      startTime: new Date(hours(3)).toISOString(),
-      endTime: new Date(hours(5)).toISOString(),
+      ...seedTimes(now, 3, 2),
       ttlHours: 8,
-      expiresAt: hours(8),
       createdAt: now,
       category: 'social',
       maxAttendees: 14,
@@ -1445,6 +1446,35 @@ export class Repository {
     return [];
   }
 
+  /**
+   * Matches that belong to this viewer, with `partnerProfile` always being the *other* person.
+   * Matches between other people (e.g. the other demo persona's) are excluded.
+   */
+  static getMatchesFor(viewer: UserProfile): MatchItem[] {
+    const profiles = this.getProfiles();
+    return this.getMatches().flatMap((m) => {
+      if (m.user1Id === viewer.id) return isSamePerson(m.partnerProfile, viewer) ? [] : [m];
+      if (m.user2Id === viewer.id) {
+        const other = profiles.find((p) => p.id === m.user1Id);
+        return other && !isSamePerson(other, viewer) ? [{ ...m, partnerProfile: other }] : [];
+      }
+      return [];
+    });
+  }
+
+  /** Meetups this viewer booked (never one "with themselves" from another persona's data). */
+  static getMeetupsFor(viewer: UserProfile): CalendarMeetup[] {
+    const matches = this.getMatches();
+    const profiles = this.getProfiles();
+    return this.getScheduledMeetups().filter((m) => {
+      const owner = this.meetupOwner(m, matches);
+      if (owner) return owner === viewer.id;
+      // Unknown owner (very old record): keep it unless it's with the viewer themself
+      const partner = profiles.find((p) => p.id === m.partnerId);
+      return m.partnerId !== viewer.id && !(partner && isSamePerson(partner, viewer));
+    });
+  }
+
   // Existing match between two people (either direction), if any
   static findMatchWith(viewerId: string, partnerId: string): MatchItem | undefined {
     const key = this.pairKey({ user1Id: viewerId, user2Id: partnerId });
@@ -1474,12 +1504,19 @@ export class Repository {
     }
   }
 
-  // One upcoming meetup per person: stored newest-first, so the first one seen per partner wins
+  // Who booked a meetup: explicit ownerId, else the person who started its match
+  private static meetupOwner(m: CalendarMeetup, matches: MatchItem[]): string | undefined {
+    return m.ownerId ?? matches.find((x) => x.id === m.matchId)?.user1Id;
+  }
+
+  // One upcoming meetup per (viewer, partner): stored newest-first, so the first one seen wins
   private static dedupeMeetups(meetups: CalendarMeetup[]): CalendarMeetup[] {
+    const matches = this.getMatches();
     const seen = new Set<string>();
     return meetups.filter((m) => {
-      if (seen.has(m.partnerId)) return false;
-      seen.add(m.partnerId);
+      const key = `${this.meetupOwner(m, matches) ?? '?'}|${m.partnerId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
   }
@@ -1499,7 +1536,10 @@ export class Repository {
   /** Saves a meetup. Scheduling the same person again reschedules (replaces) their meetup. */
   static saveScheduledMeetup(meetup: CalendarMeetup): void {
     const meetups = this.getScheduledMeetups();
-    const updated = [meetup, ...meetups.filter((m) => m.id !== meetup.id && m.partnerId !== meetup.partnerId)];
+    const matches = this.getMatches();
+    const owner = this.meetupOwner(meetup, matches);
+    const sameSlot = (m: CalendarMeetup) => m.partnerId === meetup.partnerId && this.meetupOwner(m, matches) === owner;
+    const updated = [meetup, ...meetups.filter((m) => m.id !== meetup.id && !sameSlot(m))];
     if (this.isSafeStorageAvailable()) {
       try {
         localStorage.setItem(STORAGE_KEYS.MEETUPS, JSON.stringify(updated));

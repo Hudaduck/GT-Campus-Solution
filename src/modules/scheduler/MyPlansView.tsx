@@ -40,8 +40,9 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
       (e) => e.attendees?.includes(user.id) || e.hostId === user.id
     );
     setEvents(myEvents);
-    setMatches(Repository.getMatches());
-    setMeetups(Repository.getScheduledMeetups());
+    // Only this viewer's own matches and meetups (the demo has two personas sharing storage)
+    setMatches(Repository.getMatchesFor(user));
+    setMeetups(Repository.getMeetupsFor(user));
   };
 
   useEffect(() => {
@@ -387,10 +388,12 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                       </p>
 
                       <div className="mt-3 bg-tp-elevated p-2.5 rounded-xl border border-[#B39051]/35 space-y-1 text-xs">
-                        <div className="flex items-center justify-between text-tp-muted">
-                          <MapPin className="w-3 h-3 shrink-0" />
-                        <span>{event.locationName}</span>
-                          <span className="text-tp-accent">{event.neighborhoodZone}</span>
+                        <div className="flex items-start gap-1.5 text-tp-muted">
+                          <MapPin className="w-3 h-3 shrink-0 mt-0.5" />
+                          <span className="min-w-0">
+                            <span className="text-tp-ink font-semibold">{event.locationName}</span>
+                            <span className="text-tp-accent"> · {event.neighborhoodZone}</span>
+                          </span>
                         </div>
                         <div className="text-tp-accent font-semibold">
                           <Clock className="inline w-3 h-3 mr-1 -mt-0.5" />
@@ -434,6 +437,28 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
             </div>
           )}
         </section>
+      )}
+
+      {/* 3a. Matches tab with nothing pending: explain and point to Connect */}
+      {activeTab === 'matches' && pendingMatches.length === 0 && (
+        <div
+          data-testid="matches-empty"
+          className="p-6 bg-tp-surface/80 rounded-2xl border border-dashed border-[#B39051]/35 text-center space-y-2"
+        >
+          <p className="text-sm text-tp-muted">No pending matches right now.</p>
+          <p className="text-xs text-tp-subtle">
+            Connect with students and alumni in Connect 1-on-1. Matches you haven't scheduled yet show up here.
+          </p>
+          {onNavigateToRadar && (
+            <button
+              onClick={onNavigateToRadar}
+              className="mt-2 px-4 py-2 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition inline-flex items-center gap-1.5"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              <span>Open Connect 1-on-1</span>
+            </button>
+          )}
+        </div>
       )}
 
       {/* 3. 1-on-1 Matches Section */}

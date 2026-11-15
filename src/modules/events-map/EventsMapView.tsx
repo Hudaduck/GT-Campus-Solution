@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { getCategoryIcon } from '../../shared/ui/categoryIcons';
+import { getCategoryIcon, getCategoryLabel } from '../../shared/ui/categoryIcons';
 import {
   List as ListIcon,
   LayoutGrid,
@@ -7,6 +7,8 @@ import {
   Plus,
   Search,
   Sparkles,
+  CalendarCheck,
+  X as CloseIcon,
 } from 'lucide-react';
 import { useBrand } from '../../shared/config/brandConfig';
 import { UserProfile, EventItem } from '../../shared/contracts';
@@ -22,6 +24,7 @@ import { LocationPreferenceChip } from '../../shared/ui/LocationPreference';
 import { LocationPreference } from '../../shared/contracts';
 import { RADIUS_OPTIONS, distanceMiles, getLocationPreference, isWithinRadius, radiusLabel } from '../../shared/location';
 import { ScoredEventItem, ViewMode } from './types';
+import { eventTimeLabel } from './eventTime';
 import { MapContainerView } from './MapContainerView';
 import { EventListView } from './EventListView';
 import { EventDetailDrawer } from './EventDetailDrawer';
@@ -47,6 +50,14 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
   const [selectedEvent, setSelectedEvent] = useState<ScoredEventItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isHostOpen, setIsHostOpen] = useState(false);
+  const [justScheduled, setJustScheduled] = useState<EventItem | null>(null);
+
+  // The "Pop-up scheduled" confirmation tidies itself away
+  useEffect(() => {
+    if (!justScheduled) return;
+    const id = window.setTimeout(() => setJustScheduled(null), 8000);
+    return () => window.clearTimeout(id);
+  }, [justScheduled]);
 
   // Refresh user and events periodically or on storage event
   const [allProfiles, setAllProfiles] = useState<UserProfile[]>(() => Repository.getProfiles());
@@ -158,7 +169,16 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
 
   const handleEventCreated = (newEvent: EventItem) => {
     setEvents((prev) => [newEvent, ...prev]);
-    // Switch to list view or map view centered on new event
+    // Clear filters so the new pop-up is visible, and confirm it was scheduled
+    setSelectedCategory('all');
+    setOnlyRecommended(false);
+    setSearchQuery('');
+    setJustScheduled(newEvent);
+  };
+
+  const filtersActive = searchQuery.trim() !== '' || selectedCategory !== 'all' || onlyRecommended;
+  const clearFilters = () => {
+    setSearchQuery('');
     setSelectedCategory('all');
     setOnlyRecommended(false);
   };
@@ -193,12 +213,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
 
   const categories: { id: string; label: string }[] = [
     { id: 'all', label: 'All Events' },
-    { id: 'coffee', label: 'Casual' },
-    { id: 'startup', label: 'Startups & AI' },
-    { id: 'sports', label: 'Sports' },
-    { id: 'study', label: 'Study Cram' },
-    { id: 'social', label: 'Social & Games' },
-    { id: 'networking', label: 'Networking' },
+    ...['coffee', 'startup', 'sports', 'study', 'social', 'networking'].map((id) => ({ id, label: getCategoryLabel(id) })),
   ];
 
   // Map follows the location preference (zoom is only used for "Anywhere"; otherwise it fits the radius)
@@ -216,8 +231,11 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
               <span>Campus Map Radar</span>
             </h2>
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#051E39] tp-on-navy text-tp-accent border border-[#B39051]/35">
-              {filteredEvents.length} {filteredEvents.length === 1 ? 'Event' : 'Events'}
-              {locationPref.radiusMiles !== null ? ` within ${radiusLabel(locationPref.radiusMiles)}` : ''}
+              {filtersActive
+                ? `${filteredEvents.length} of ${nearbyEvents.length} ${nearbyEvents.length === 1 ? 'Event' : 'Events'}`
+                : `${filteredEvents.length} ${filteredEvents.length === 1 ? 'Event' : 'Events'}${
+                    locationPref.radiusMiles !== null ? ` within ${radiusLabel(locationPref.radiusMiles)}` : ''
+                  }`}
             </span>
           </div>
           {isWeb && (
@@ -228,12 +246,12 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
         </div>
 
         {/* View Switchers & Host Button */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-start">
           <div className="bg-tp-surface p-1 rounded-2xl border border-[#B39051]/35 flex items-center shadow-inner">
             <button
               data-testid="view-toggle-map"
               onClick={() => setViewMode('map')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition ${
                 viewMode === 'map'
                   ? 'bg-[#051E39] tp-on-navy text-tp-accent border border-[#B39051]/40 shadow'
                   : 'text-tp-subtle hover:text-tp-ink'
@@ -245,7 +263,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
             <button
               data-testid="view-toggle-list"
               onClick={() => setViewMode('list')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition ${
                 viewMode === 'list'
                   ? 'bg-[#051E39] tp-on-navy text-tp-accent border border-[#B39051]/40 shadow'
                   : 'text-tp-subtle hover:text-tp-ink'
@@ -257,7 +275,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
             <button
               data-testid="view-toggle-grid"
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition ${
                 viewMode === 'grid'
                   ? 'bg-[#051E39] tp-on-navy text-tp-accent border border-[#B39051]/40 shadow'
                   : 'text-tp-subtle hover:text-tp-ink'
@@ -271,10 +289,12 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
           <button
             data-testid="open-host-event-button"
             onClick={() => setIsHostOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-black bg-[#B39051] text-[#051E39] hover:bg-[#8F713D] active:bg-[#8F713D] border-2 border-[#B39051] shadow-md transition active:scale-95"
+            className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-2xl text-xs font-black bg-[#B39051] text-[#051E39] hover:bg-[#8F713D] active:bg-[#8F713D] border-2 border-[#B39051] shadow-md transition active:scale-95"
           >
             <Plus className="w-4 h-4 text-[#051E39]" />
-            <span>Schedule Pop-Up</span>
+            <span>
+              Schedule<span className="hidden sm:inline"> Pop-Up</span>
+            </span>
           </button>
         </div>
       </div>
@@ -300,7 +320,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
           <button
             data-testid="filter-recommended"
             onClick={() => setOnlyRecommended(!onlyRecommended)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border transition ${
+            className={`hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border transition ${
               onlyRecommended
                 ? 'bg-[#B39051] text-[#051E39] border-[#B39051] shadow'
                 : 'bg-tp-elevated text-tp-accent border-[#B39051]/50 hover:bg-[#B39051]/15'
@@ -313,6 +333,19 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
 
         {/* Category Horizontal Scrolling Chips */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+          <button
+            data-testid="filter-recommended-chip"
+            aria-pressed={onlyRecommended}
+            onClick={() => setOnlyRecommended(!onlyRecommended)}
+            className={`sm:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap border transition ${
+              onlyRecommended
+                ? 'bg-[#B39051] text-[#051E39] border-[#B39051]'
+                : 'bg-tp-elevated text-tp-accent border-[#B39051]/50'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>For You</span>
+          </button>
           {categories.map((cat) => (
             <button
               key={cat.id}
@@ -329,6 +362,62 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
           ))}
         </div>
       </div>
+
+      {/* Just scheduled a pop-up: confirm it and offer to open it */}
+      {justScheduled && (
+        <div
+          role="status"
+          data-testid="event-scheduled-banner"
+          className="mb-4 p-3.5 rounded-2xl border border-[#B39051] bg-[#051E39] tp-on-navy flex items-center gap-3 text-xs"
+        >
+          <CalendarCheck className="w-5 h-5 text-tp-accent shrink-0" />
+          <p className="flex-1 min-w-0 text-tp-ink">
+            <strong>Pop-up scheduled</strong> · {justScheduled.title} ·{' '}
+            <span className="text-tp-accent">{eventTimeLabel(justScheduled)}</span>
+          </p>
+          {scoredEvents.some((ev) => ev.id === justScheduled.id) && (
+            <button
+              type="button"
+              onClick={() => {
+                const scored = scoredEvents.find((ev) => ev.id === justScheduled.id);
+                if (scored) handleSelectEvent(scored);
+                setJustScheduled(null);
+              }}
+              className="shrink-0 min-h-[32px] px-3 rounded-lg bg-[#B39051] text-[#051E39] font-bold"
+            >
+              View
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setJustScheduled(null)}
+            className="shrink-0 p-1 rounded-lg text-tp-subtle hover:text-tp-ink"
+          >
+            <CloseIcon className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Search / filters hide everything nearby: say so and offer to clear them */}
+      {nearbyEvents.length > 0 && filteredEvents.length === 0 && (
+        <div
+          data-testid="no-events-match"
+          className="mb-4 p-3.5 rounded-2xl border border-dashed border-[#B39051]/50 bg-tp-surface flex flex-wrap items-center justify-between gap-2 text-xs"
+        >
+          <p className="text-tp-muted">
+            {searchQuery.trim() ? `No pop-ups match "${searchQuery.trim()}"` : 'No pop-ups match these filters'}
+            {selectedCategory !== 'all' || onlyRecommended ? ' with the selected filters' : ''}.
+          </p>
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="min-h-[34px] px-3 rounded-xl bg-[#B39051] text-[#051E39] font-bold"
+          >
+            Clear search & filters
+          </button>
+        </div>
+      )}
 
       {/* Nothing inside the radius: say so and offer to widen it */}
       {nearbyEvents.length === 0 && events.length > 0 && (

@@ -59,44 +59,34 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
 
   // Generate 4 dynamic quick time slots based on current time
   const quickTimeSlots = React.useMemo(() => {
-    const slots = [];
     const now = new Date();
+    const clock = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const at = (dayOffset: number, hours: number, minutes = 0) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() + dayOffset);
+      d.setHours(hours, minutes, 0, 0);
+      return d;
+    };
+    const slots: { label: string; date: string }[] = [];
 
-    // Slot 1: Today later (e.g. 4:00 PM or +3 hours)
-    const slot1 = new Date(now);
-    slot1.setHours(slot1.getHours() + 3, 0, 0, 0);
-    slots.push({
-      label: `Today • ${slot1.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`,
-      date: slot1.toISOString(),
-    });
+    // "Today" only if there's a sensible time left: 2h+ from now, on the half hour, 8 AM-8:30 PM
+    const later = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    later.setMinutes(later.getMinutes() <= 30 ? 30 : 60, 0, 0);
+    const minutesOfDay = later.getHours() * 60 + later.getMinutes();
+    const sameDay = later.getDate() === now.getDate();
+    if (sameDay && minutesOfDay >= 8 * 60 && minutesOfDay <= 20 * 60 + 30) {
+      slots.push({ label: `Today • ${clock(later)}`, date: later.toISOString() });
+    }
 
-    // Slot 2: Tomorrow morning (10:30 AM)
-    const slot2 = new Date(now);
-    slot2.setDate(slot2.getDate() + 1);
-    slot2.setHours(10, 30, 0, 0);
+    slots.push({ label: 'Tomorrow • 10:30 AM', date: at(1, 10, 30).toISOString() });
+    slots.push({ label: 'Tomorrow • 3:30 PM', date: at(1, 15, 30).toISOString() });
+    const inTwoDays = at(2, 14);
     slots.push({
-      label: `Tomorrow • 10:30 AM`,
-      date: slot2.toISOString(),
+      label: `${inTwoDays.toLocaleDateString([], { weekday: 'short' })} • 2:00 PM`,
+      date: inTwoDays.toISOString(),
     });
-
-    // Slot 3: Tomorrow afternoon (3:30 PM)
-    const slot3 = new Date(now);
-    slot3.setDate(slot3.getDate() + 1);
-    slot3.setHours(15, 30, 0, 0);
-    slots.push({
-      label: `Tomorrow • 3:30 PM`,
-      date: slot3.toISOString(),
-    });
-
-    // Slot 4: 2 days later (2:00 PM)
-    const slot4 = new Date(now);
-    slot4.setDate(slot4.getDate() + 2);
-    slot4.setHours(14, 0, 0, 0);
-    const dayName = slot4.toLocaleDateString([], { weekday: 'short' });
-    slots.push({
-      label: `${dayName} • 2:00 PM`,
-      date: slot4.toISOString(),
-    });
+    // Keep four choices when "Today" isn't offered
+    if (slots.length < 4) slots.splice(2, 0, { label: 'Tomorrow • 6:00 PM', date: at(1, 18).toISOString() });
 
     return slots;
   }, []);
@@ -187,6 +177,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
 
     const newMeetup: CalendarMeetup = {
       id: `meetup_${Date.now()}`,
+      ownerId: currentUser.id,
       matchId: existingMatch?.id || matchId || `match_${currentUser.id}_${partner.id}`,
       partnerId: partner.id,
       partnerName: partner.name,

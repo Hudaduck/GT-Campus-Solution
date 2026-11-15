@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getCategoryIcon } from '../../shared/ui/categoryIcons';
+import { getCategoryIcon, getCategoryLabel } from '../../shared/ui/categoryIcons';
 import { X, Clock, Tag, Users, MapPinPlus, CalendarClock, CalendarPlus } from 'lucide-react';
 import { EventCategory, EventItem, UserProfile } from '../../shared/contracts';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
@@ -43,15 +43,10 @@ function quickStarts(now = new Date()): { label: string; at: Date }[] {
   return options;
 }
 
-const CATEGORIES: { id: EventCategory; label: string }[] = [
-  { id: 'coffee', label: 'Casual' },
-  { id: 'startup', label: 'AI & Startups' },
-  { id: 'tech', label: 'Tech & Code' },
-  { id: 'sports', label: 'Sports' },
-  { id: 'study', label: 'Study Cram' },
-  { id: 'social', label: 'Social & Games' },
-  { id: 'networking', label: 'Networking & Mentorship' },
-];
+// Same names as the map chips and event cards (CATEGORY_LABELS)
+const CATEGORIES: { id: EventCategory; label: string }[] = (
+  ['coffee', 'startup', 'tech', 'sports', 'study', 'social', 'networking'] as EventCategory[]
+).map((id) => ({ id, label: getCategoryLabel(id) }));
 
 const CAMPUS_ZONE_COORDINATES: Record<string, { lat: number; lng: number }> = {
   'Midtown • Tech Square': { lat: 33.7765, lng: -84.3888 },

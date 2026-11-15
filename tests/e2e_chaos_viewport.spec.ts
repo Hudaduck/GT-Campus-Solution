@@ -39,7 +39,7 @@ test.describe('Suite 3: E2E Core User Flows', () => {
 
     // Click Alum
     await alumBtn.click();
-    await expect(page.locator('text=LinkedIn Verified')).toBeVisible();
+    await expect(page.locator('text=LinkedIn Linked')).toBeVisible();
   });
 
   test('Flow 3: Onboarding modal opens and allows completing profile', async ({ page }) => {

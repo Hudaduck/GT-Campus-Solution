@@ -128,6 +128,7 @@ export interface ChatMessage {
 
 export interface CalendarMeetup {
   id: string;
+  ownerId?: string; // who booked it (the viewer); older records infer it from their match
   matchId: string;
   partnerId: string;
   partnerName: string;

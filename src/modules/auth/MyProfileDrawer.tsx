@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Briefcase, Target, Tag, Check, Plus, Trash2, GraduationCap, MapPin } from 'lucide-react';
+import { X, Briefcase, Target, Tag, Check, Plus, Trash2, GraduationCap, MapPin, Moon, Sun } from 'lucide-react';
+import { useBrand } from '../../shared/config/brandConfig';
 import { useAuth } from './AuthContext';
 import { WorkExperience, MeetupIntent, LocationPreference } from '../../shared/contracts';
 import { getLocationPreference } from '../../shared/location';
@@ -17,6 +18,7 @@ export interface MyProfileDrawerProps {
 
 export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClose }) => {
   const { user, updateProfile, setShowOnboarding, setShowLinkedInImport } = useAuth();
+  const { isDarkMode, toggleDarkMode } = useBrand();
 
   const [name, setName] = useState(user.name || '');
   const [major, setMajor] = useState(user.major || '');
@@ -450,6 +452,35 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
             </h3>
 
             <HobbyCombobox value={hobbies} onChange={setHobbies} suggestions={hobbySuggestions} max={5} />
+          </div>
+
+          {/* Appearance: the only theme switch reachable on phones (desktop also has one in the header) */}
+          <div data-testid="profile-appearance" className="space-y-2 pt-3 border-t border-tp-line">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-tp-accent">Appearance</h3>
+            <div role="group" aria-label="Theme" className="grid grid-cols-2 gap-2 max-w-xs">
+              {([
+                { dark: true, label: 'Dark', Icon: Moon },
+                { dark: false, label: 'Light', Icon: Sun },
+              ] as const).map(({ dark, label, Icon }) => (
+                <button
+                  key={label}
+                  type="button"
+                  data-testid={`theme-${label.toLowerCase()}`}
+                  aria-pressed={isDarkMode === dark}
+                  onClick={() => {
+                    if (isDarkMode !== dark) toggleDarkMode();
+                  }}
+                  className={`min-h-[40px] rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+                    isDarkMode === dark
+                      ? 'bg-[#B39051] text-[#051E39] border-[#B39051]'
+                      : 'bg-tp-canvas/60 text-tp-muted border-tp-line hover:border-[#B39051]/60'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Save Action Button */}

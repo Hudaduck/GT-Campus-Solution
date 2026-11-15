@@ -214,9 +214,16 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
 
-  // Collect Re-Connect attendees from recent events
+  // Collect Re-Connect attendees: people from pop-ups YOU went to (or hosted), not every event
   const reconnectAttendees = useMemo(() => {
-    const events = Repository.getEvents();
+    // "Me" includes my demo seed twin (same person, different id), see isSamePerson()
+    const myIds = new Set([
+      currentUser.id,
+      ...Repository.getProfiles().filter((p) => isSamePerson(p, currentUser)).map((p) => p.id),
+    ]);
+    const events = Repository.getEvents().filter(
+      (evt) => myIds.has(evt.hostId) || (evt.attendees ?? []).some((id) => myIds.has(id))
+    );
     const map = new Map<string, { profile: UserProfile; eventTitle: string }>();
 
     for (const evt of events) {
@@ -232,7 +239,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
       }
     }
     return Array.from(map.values());
-  }, [profiles, currentUser.id]);
+  }, [profiles, currentUser]);
 
   const isWeb = layout === 'web';
 
@@ -271,7 +278,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
       className={
         isWeb
           ? 'max-w-6xl mx-auto px-6 py-6 grid grid-cols-[minmax(0,440px)_minmax(0,1fr)] gap-8 items-start font-sans'
-          : 'h-full max-w-md mx-auto px-3 pt-3 pb-1 flex flex-col gap-2.5 font-sans'
+          : 'min-h-full max-w-md mx-auto px-3 pt-3 pb-2 flex flex-col gap-2.5 font-sans'
       }
     >
       <div className={isWeb ? 'space-y-4 w-full' : 'contents'}>
@@ -388,6 +395,31 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
             </label>
           </div>
 
+          {/* Small deck? Say why (filters / radius) and offer one tap to widen it */}
+          {filteredProfiles.length > 0 && filteredProfiles.length < 5 && (intentFilter === 'for-you' || locationPref.radiusMiles !== null) && (
+            <div data-testid="deck-hint" className="shrink-0 flex items-center justify-between gap-2 px-1 text-[11px] text-tp-muted">
+              <span className="min-w-0">
+                {filteredProfiles.length} {filteredProfiles.length === 1 ? 'person fits' : 'people fit'}
+                {intentFilter === 'for-you' ? ' your intents' : ''}
+                {locationPref.radiusMiles !== null ? ` within ${radiusLabel(locationPref.radiusMiles)}` : ''}.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (intentFilter === 'for-you') {
+                    setIntentFilter('all');
+                    setCurrentIndex(0);
+                  } else {
+                    changeLocation({ ...locationPref, radiusMiles: nextWiderRadius ?? null });
+                  }
+                }}
+                className="shrink-0 font-bold text-tp-accent underline"
+              >
+                {intentFilter === 'for-you' ? 'Show everyone' : `Widen to ${radiusLabel(nextWiderRadius ?? null)}`}
+              </button>
+            </div>
+          )}
+
           {/* Card Stack Area */}
           <div className={isWeb ? 'relative' : 'relative flex-1 min-h-0 flex flex-col'}>
             {currentCandidate ? (
@@ -402,12 +434,12 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                   key={currentCandidate.id}
                   data-testid="swipe-card"
                   className={`relative bg-tp-surface border-2 border-[#B39051]/50 rounded-3xl overflow-hidden shadow-2xl flex flex-col ${
-                    isWeb ? '' : 'flex-1 min-h-[340px]'
+                    isWeb ? '' : 'flex-1 min-h-[320px]'
                   }`}
                 >
 
                   {/* Photo with name, class / major and current role */}
-                  <div className={`relative w-full bg-[#051E39] tp-on-navy ${isWeb ? 'h-80' : 'flex-1 min-h-[150px]'}`}>
+                  <div className={`relative w-full bg-[#051E39] tp-on-navy ${isWeb ? 'h-80' : 'flex-1 min-h-[140px]'}`}>
                     <img
                       src={currentCandidate.avatarUrl}
                       alt={currentCandidate.name}
@@ -435,8 +467,8 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                     </div>
 
                     <div className="absolute bottom-2.5 inset-x-3 flex items-end justify-between gap-2">
-                      <div className="min-w-0">
-                        <h3 className="text-2xl font-black text-tp-ink tracking-tight drop-shadow truncate">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-xl sm:text-2xl font-black text-tp-ink tracking-tight drop-shadow leading-tight break-words">
                           {currentCandidate.name}
                           <span className="ml-2 align-middle text-xs font-bold text-tp-accent">
                             '{currentCandidate.gradYear.toString().slice(-2)}
@@ -451,7 +483,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                       </div>
                       {cardIntents.length > 0 && (
                         <div
-                          className="flex flex-wrap justify-end gap-1 shrink-0 max-w-[50%]"
+                          className="flex flex-wrap justify-end gap-1 shrink max-w-[45%]"
                           data-testid="candidate-intents"
                         >
                           {cardIntents.map(({ id }) => (
@@ -614,7 +646,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
 
           {reconnectAttendees.length === 0 ? (
             <div className="text-center p-8 bg-tp-surface rounded-3xl border border-[#B39051]/35 space-y-3">
-              <p className="text-xs text-tp-muted">No recent event attendees to reconnect with yet.</p>
+              <p className="text-xs text-tp-muted">No one to reconnect with yet. RSVP to a pop-up and the people you meet there will show up here.</p>
               {onNavigateToMap && (
                 <button
                   onClick={onNavigateToMap}
@@ -894,7 +926,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
 
             {(currentCandidate.targetRoles.length > 0 || currentCandidate.targetCompanies.length > 0) && (
               <section className="space-y-1.5">
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-tp-accent">Looking for</h4>
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-tp-accent">Career goals</h4>
                 <p className="text-xs text-tp-muted">
                   {currentCandidate.targetRoles.join(', ')}
                   {currentCandidate.targetCompanies.length > 0 && ` at ${currentCandidate.targetCompanies.join(', ')}`}

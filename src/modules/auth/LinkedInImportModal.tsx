@@ -32,12 +32,9 @@ export const LinkedInImportButton: React.FC<{ onClick: () => void; className?: s
         <Linkedin className="w-4 h-4" />
       </span>
       <span className="text-left">
-        <span className="block text-sm font-black">Import with LinkedIn</span>
-        <span className="block text-[11px] text-tp-muted">Auto-fill career history, major & hobbies</span>
+        <span className="block text-sm font-black">Fill from LinkedIn</span>
+        <span className="block text-[11px] text-tp-muted">Paste your profile link or text, then review</span>
       </span>
-    </span>
-    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-[#B39051] text-[#051E39] uppercase tracking-wider">
-      1-click
     </span>
   </button>
 );
