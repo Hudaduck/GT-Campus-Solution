@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { X, Briefcase, Target, Tag, Check, Plus, Trash2, GraduationCap } from 'lucide-react';
+import { X, Briefcase, Target, Tag, Check, Plus, Trash2, GraduationCap, MapPin } from 'lucide-react';
 import { useAuth } from './AuthContext';
-import { WorkExperience, MeetupIntent } from '../../shared/contracts';
-import { POPULAR_HOBBIES } from '../../shared/data/repository';
+import { WorkExperience, MeetupIntent, LocationPreference } from '../../shared/contracts';
+import { getLocationPreference } from '../../shared/location';
+import { LocationPreferenceEditor } from '../../shared/ui/LocationPreference';
+import { HOBBY_SUGGESTIONS, Repository } from '../../shared/data/repository';
+import { HobbyCombobox } from '../../shared/ui/HobbyCombobox';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
+import { IntentPicker } from '../../shared/ui/IntentPicker';
 import { LinkedInImportButton } from './LinkedInImportModal';
 
 export interface MyProfileDrawerProps {
@@ -19,7 +23,8 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
   const [gradYear, setGradYear] = useState(user.gradYear || 2026);
   const [companyOrLab, setCompanyOrLab] = useState(user.companyOrLab || '');
   const [bio, setBio] = useState(user.bio || '');
-  const [intent, setIntent] = useState<MeetupIntent>(user.intent || 'co-founder');
+  const [intents, setIntents] = useState<MeetupIntent[]>(user.intents ?? []);
+  const [locationPref, setLocationPref] = useState<LocationPreference>(() => getLocationPreference(user));
   const [hobbies, setHobbies] = useState<string[]>(user.hobbies || []);
 
   // Career fields
@@ -42,7 +47,8 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
       setGradYear(user.gradYear || 2026);
       setCompanyOrLab(user.companyOrLab || '');
       setBio(user.bio || '');
-      setIntent(user.intent || 'co-founder');
+      setIntents(user.intents ?? []);
+      setLocationPref(getLocationPreference(user));
       setHobbies(user.hobbies || []);
       setWorkHistory(user.workHistory || []);
       setTargetCompanies(user.targetCompanies || []);
@@ -52,6 +58,9 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
   }, [isOpen, user]);
 
   if (!isOpen) return null;
+
+  // Curated list + what people on the radar already like (picking a shared one helps matching)
+  const hobbySuggestions = [...HOBBY_SUGGESTIONS, ...Repository.getProfiles().flatMap((p) => p.hobbies)];
 
   const handleAddWork = () => {
     if (!newCompany.trim() || !newRole.trim()) return;
@@ -97,15 +106,6 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
     setTargetRoles(targetRoles.filter((r) => r !== role));
   };
 
-  const toggleHobby = (hobby: string) => {
-    if (hobbies.includes(hobby)) {
-      setHobbies(hobbies.filter((h) => h !== hobby));
-    } else {
-      if (hobbies.length < 5) {
-        setHobbies([...hobbies, hobby]);
-      }
-    }
-  };
 
   const handleSave = () => {
     updateProfile({
@@ -114,7 +114,8 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
       gradYear: Number(gradYear) || user.gradYear,
       companyOrLab: companyOrLab.trim() || undefined,
       bio: bio.trim() || user.bio,
-      intent,
+      intents,
+      locationPreference: locationPref,
       hobbies,
       workHistory,
       targetCompanies,
@@ -415,7 +416,30 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
             </div>
           </div>
 
-          {/* Section 4: Hobbies */}
+          {/* Location preference: where you want to meet + how far */}
+          <div data-testid="profile-location" className="space-y-3 pt-3 border-t border-tp-line">
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-tp-accent flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-tp-accent" />
+                <span>Location Preference</span>
+              </h3>
+              <p className="text-[11px] text-tp-muted mt-1">
+                Sets which events show on your map and who appears in Connect 1-on-1.
+              </p>
+            </div>
+            <LocationPreferenceEditor value={locationPref} onChange={setLocationPref} />
+          </div>
+
+          {/* Section 4: What you're looking for */}
+          <div data-testid="profile-intents" className="space-y-3 pt-3 border-t border-tp-line">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-tp-accent flex items-center gap-1.5">
+              <Target className="w-3.5 h-3.5 text-tp-accent" />
+              <span>Looking For</span>
+            </h3>
+            <IntentPicker value={intents} onChange={setIntents} compact />
+          </div>
+
+          {/* Section 5: Hobbies */}
           <div className="space-y-3 pt-3 border-t border-tp-line">
             <h3 className="text-xs font-bold uppercase tracking-wider text-tp-accent flex items-center justify-between">
               <span className="flex items-center gap-1.5">
@@ -425,28 +449,7 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
               <span className="text-[11px] text-tp-subtle">{hobbies.length}/5 selected</span>
             </h3>
 
-            <div className="flex flex-wrap gap-1.5">
-              {Array.from(
-                new Set([...hobbies, ...POPULAR_HOBBIES.filter((p) => !hobbies.some((h) => h.toLowerCase() === p.toLowerCase()))])
-              ).map((hobby) => {
-                const isSelected = hobbies.includes(hobby);
-                return (
-                  <button
-                    key={hobby}
-                    type="button"
-                    onClick={() => toggleHobby(hobby)}
-                    className={`text-xs px-3 py-1.5 rounded-xl font-medium transition ${
-                      isSelected
-                        ? 'bg-[#B39051] text-[#051E39] font-black shadow-md ring-1 ring-[#B39051]'
-                        : 'bg-tp-elevated text-tp-muted border border-[#B39051]/35 hover:text-tp-ink'
-                    }`}
-                  >
-                    {isSelected && <Check className="inline w-3 h-3 mr-1 -mt-0.5" />}
-                    {hobby}
-                  </button>
-                );
-              })}
-            </div>
+            <HobbyCombobox value={hobbies} onChange={setHobbies} suggestions={hobbySuggestions} max={5} />
           </div>
 
           {/* Save Action Button */}

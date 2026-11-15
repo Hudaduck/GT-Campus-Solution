@@ -230,4 +230,32 @@ describe('EventsMapView Module', () => {
     expect(icon.options.html).not.toMatch(/[\u{1F300}-\u{1FAFF}★]/u);
     expect(icon.options.html).toContain('GT');
   });
+
+  it('filters events to the location radius and offers to widen it when nothing is in range', () => {
+    const total = Repository.getEvents().length;
+    renderWithBrand(React.createElement(EventsMapView));
+    // Default: Georgia Tech Campus within 5 mi covers every Midtown pop-up
+    expect(screen.getByText(new RegExp(`${total} Events within 5 mi`))).toBeDefined();
+
+    // Decatur, 0.5 mi: nothing nearby
+    fireEvent.click(screen.getByTestId('location-chip'));
+    fireEvent.change(screen.getByTestId('location-area'), { target: { value: 'decatur' } });
+    fireEvent.click(screen.getByTestId('radius-0.5'));
+    fireEvent.click(screen.getByTestId('location-done'));
+    expect(screen.getByTestId('no-events-in-radius').textContent).toContain('No pop-ups within 0.5 mi of Decatur');
+    expect(screen.getByText(/0 Events within 0.5 mi/)).toBeDefined();
+
+    fireEvent.click(screen.getByText('Show anywhere'));
+    expect(screen.queryByTestId('no-events-in-radius')).toBeNull();
+    expect(screen.getByText(new RegExp(`^${total} Events$`))).toBeDefined();
+    expect(Repository.getCurrentUser().locationPreference).toMatchObject({ areaId: 'decatur', radiusMiles: null });
+  });
+
+  it("shows each event's distance from your area in the list", () => {
+    renderWithBrand(React.createElement(EventsMapView));
+    fireEvent.click(screen.getByTestId('view-toggle-list'));
+    const distances = screen.getAllByTestId('event-distance').map((d) => d.textContent);
+    expect(distances.length).toBeGreaterThan(0);
+    expect(distances.every((d) => /\d(\.\d)? mi$/.test(d ?? ''))).toBe(true);
+  });
 });

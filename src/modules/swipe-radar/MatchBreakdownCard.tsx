@@ -1,17 +1,17 @@
 import React from 'react';
-import { Briefcase, Target, Sparkles, Heart } from 'lucide-react';
+import { Briefcase, Target, Sparkles, Heart, Compass } from 'lucide-react';
+import { INTENT_CATALOG, describeMutualIntent } from '../../shared/intents';
 import { SwipeCandidate, UserProfile } from '../../shared/contracts';
 
 interface MatchBreakdownCardProps {
   candidate: SwipeCandidate | null;
   viewer: UserProfile;
-  upNext: SwipeCandidate[];
 }
 
 const MAX_SCORE = 100;
 
 // Desktop-only side panel explaining *why* the current swipe card is a match
-export const MatchBreakdownCard: React.FC<MatchBreakdownCardProps> = ({ candidate, viewer, upNext }) => {
+export const MatchBreakdownCard: React.FC<MatchBreakdownCardProps> = ({ candidate, viewer }) => {
   if (!candidate) {
     return (
       <aside className="bg-tp-surface border border-[#B39051]/35 rounded-3xl p-6 text-sm text-tp-muted">
@@ -46,6 +46,29 @@ export const MatchBreakdownCard: React.FC<MatchBreakdownCardProps> = ({ candidat
       <div className="h-2 rounded-full bg-tp-elevated overflow-hidden" aria-hidden="true">
         <div className="h-full bg-[#B39051] rounded-full transition-all" style={{ width: `${pct}%` }} />
       </div>
+
+      <section className="space-y-2" data-testid="breakdown-intents">
+        <h4 className="text-xs font-bold text-tp-ink flex items-center gap-1.5">
+          <Compass className="w-3.5 h-3.5 text-tp-accent" /> Looking for
+        </h4>
+        {candidate.intents.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {candidate.intents.map((i) => (
+              <span key={i} className="text-xs px-2.5 py-1 rounded-xl bg-tp-elevated text-tp-ink border border-[#B39051]/40 font-semibold">
+                {INTENT_CATALOG[i].label}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-tp-subtle">Open to anything.</p>
+        )}
+        {candidate.mutualIntents.map((i) => (
+          <p key={i} className="text-xs text-tp-muted">
+            <Sparkles className="inline w-3 h-3 text-tp-accent mr-1" />
+            {describeMutualIntent(i, candidate.name.split(' ')[0])}
+          </p>
+        ))}
+      </section>
 
       <section className="space-y-2">
         <h4 className="text-xs font-bold text-tp-ink flex items-center gap-1.5">
@@ -120,21 +143,6 @@ export const MatchBreakdownCard: React.FC<MatchBreakdownCardProps> = ({ candidat
           </p>
         )}
       </section>
-
-      {upNext.length > 0 && (
-        <section className="pt-3 border-t border-[#B39051]/35">
-          <h4 className="text-[11px] font-bold uppercase tracking-wider text-tp-accent mb-2">Up next</h4>
-          <div className="space-y-2">
-            {upNext.map((p) => (
-              <div key={p.id} className="flex items-center gap-2.5 text-xs">
-                <img src={p.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover border border-[#B39051]/50" />
-                <span className="text-tp-ink font-semibold truncate">{p.name}</span>
-                <span className="text-tp-subtle truncate">{p.careerBadges[0]?.label || p.major}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </aside>
   );
 };

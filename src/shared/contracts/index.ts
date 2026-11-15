@@ -1,6 +1,11 @@
 export type UserRole = 'student' | 'alumni';
 export type VerificationMethod = 'gatech_sso' | 'domain' | 'linkedin' | 'peer_vouch';
-export type MeetupIntent = 'casual' | 'mentorship' | 'co-founder' | 'study' | 'roommate' | 'all';
+// What someone is looking for. Mentorship is directional: 'find-mentor' pairs with
+// 'give-mentorship'; every other intent pairs with itself. See src/shared/intents.ts.
+export type MeetupIntent = 'casual' | 'find-mentor' | 'give-mentorship' | 'co-founder' | 'study' | 'roommate';
+
+// Pre-multi-intent single value, still found in older saved profiles (migrated on read)
+export type LegacyMeetupIntent = 'casual' | 'mentorship' | 'co-founder' | 'study' | 'roommate' | 'all';
 
 export interface WorkExperience {
   company: string;
@@ -25,7 +30,7 @@ export interface UserProfile {
   workHistory?: WorkExperience[];
   targetCompanies?: string[];
   targetRoles?: string[];
-  intent: MeetupIntent;
+  intents: MeetupIntent[]; // any number, canonical order; empty = open to anything
   hobbies: string[];
   isOpenToMeet: boolean;
   openToMeetExpiresAt?: number; // timestamp in ms (TTL)
@@ -34,6 +39,17 @@ export interface UserProfile {
   linkedinUrl?: string;
   vouchesCount: number;
   vouchedBy?: string[];
+  locationPreference?: LocationPreference; // missing = DEFAULT_LOCATION_PREFERENCE (GT campus, 5 mi)
+}
+
+// Where someone wants to meet + how far they'll go (radiusMiles null = Anywhere).
+// Filters the Map's events and the Connect 1-on-1 deck. See src/shared/location.ts.
+export interface LocationPreference {
+  areaId: string; // a LOCATION_AREAS id, or 'current' for the browser's location
+  label: string;
+  lat: number;
+  lng: number;
+  radiusMiles: number | null;
 }
 
 export type CareerBadgeKind = 'works-at' | 'ex-company' | 'targeting' | 'shared-target';
@@ -53,6 +69,7 @@ export interface SwipeCandidate extends UserProfile {
   targetRoles: string[];
   sharedHobbies: string[];
   careerBadges: CareerOverlapBadge[];
+  mutualIntents: MeetupIntent[]; // viewer intents this person complements
   overlapScore: number;
 }
 
@@ -93,7 +110,20 @@ export interface MatchItem {
   matchedAt: number;
   status: 'matched' | 'scheduled' | 'dismissed';
   sharedHobbies: string[];
-  mutualIntent: MeetupIntent;
+  mutualIntents: MeetupIntent[]; // only intents that genuinely line up (may be empty)
+}
+
+export type MeetingFormat = 'in-person' | 'online';
+export type OnlinePlatform = 'Google Meet' | 'Zoom' | 'Microsoft Teams' | 'Phone Call';
+
+// One message in a 1-on-1 match thread. Messages with a future `sentAt` are simulated
+// partner replies that "arrive" once their time passes (the UI shows a typing indicator).
+export interface ChatMessage {
+  id: string;
+  matchId: string;
+  senderId: string;
+  text: string;
+  sentAt: number;
 }
 
 export interface CalendarMeetup {
@@ -104,7 +134,10 @@ export interface CalendarMeetup {
   partnerRole: UserRole;
   partnerAvatar: string;
   partnerMajorOrCompany: string;
-  locationName: string;
+  format?: MeetingFormat; // undefined on meetups saved before online meetings existed = in-person
+  onlinePlatform?: OnlinePlatform;
+  meetingLink?: string; // http(s) only
+  locationName: string; // spot name, or the platform name for online meetups
   locationAddress: string;
   scheduledTime: string; // ISO string
   durationMinutes: number;

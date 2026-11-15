@@ -50,7 +50,7 @@ const CATEGORIES: { id: EventCategory; label: string }[] = [
   { id: 'sports', label: 'Sports' },
   { id: 'study', label: 'Study Cram' },
   { id: 'social', label: 'Social & Games' },
-  { id: 'networking', label: 'Alumni & Mentorship' },
+  { id: 'networking', label: 'Networking & Mentorship' },
 ];
 
 const CAMPUS_ZONE_COORDINATES: Record<string, { lat: number; lng: number }> = {

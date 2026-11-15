@@ -6,7 +6,9 @@ import {
   CoffeeSpotSuggestion,
   CareerOverlapBadge,
   SwipeCandidate,
+  ChatMessage,
 } from '../contracts';
+import { getMutualIntents, resolveIntents } from '../intents';
 
 const STORAGE_KEYS = {
   EVENTS: 'thirdplace_events_data',
@@ -15,7 +17,29 @@ const STORAGE_KEYS = {
   MATCHES: 'thirdplace_matches_data',
   SWIPES: 'thirdplace_swipes_history',
   MEETUPS: 'thirdplace_meetups_data',
+  MESSAGES: 'thirdplace_messages_data',
 };
+
+// Simulated partner reply delay (no backend, so the matched person answers the opener once)
+export const DEMO_REPLY_DELAY_MS = 1800;
+
+export function buildDemoPartnerReply(partner: UserProfile, viewer: UserProfile): string {
+  const shared = partner.hobbies.find((h) => viewer.hobbies.some((v) => v.toLowerCase() === h.toLowerCase()));
+  const hook = shared ? `Always great to meet another ${shared} person. ` : '';
+  return `Hey ${viewer.name.split(' ')[0]}! Thanks for reaching out. ${hook}Happy to chat more. Would you rather grab coffee in person or hop on a quick video call?`;
+}
+
+// Only allow http(s) links so a pasted value can never become a javascript: href
+export function sanitizeMeetingLink(raw: string): string | undefined {
+  const value = raw.trim();
+  if (!value) return undefined;
+  try {
+    const url = new URL(/^[a-z]+:\/\//i.test(value) ? value : `https://${value}`);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export const POPULAR_HOBBIES = [
   'Bouldering',
@@ -29,6 +53,56 @@ export const POPULAR_HOBBIES = [
   'Baking',
   'Hiking',
   'Volleyball',
+];
+
+// Type-ahead suggestions for the hobby search (popular first). People can still add anything.
+export const HOBBY_SUGGESTIONS = [
+  ...POPULAR_HOBBIES,
+  'Basketball',
+  'Soccer',
+  'Tennis',
+  'Swimming',
+  'Cycling',
+  'Yoga',
+  'Weightlifting',
+  'Rock Climbing',
+  'Ultimate Frisbee',
+  'Golf',
+  'Skiing',
+  'Surfing',
+  'Photography',
+  'Painting',
+  'Drawing',
+  'Writing',
+  'Reading',
+  'Podcasts',
+  'Film',
+  'Music Production',
+  'Guitar',
+  'Piano',
+  'Singing',
+  'Dancing',
+  'Cooking',
+  'Coffee Roasting',
+  'Wine Tasting',
+  'Gardening',
+  'Travel',
+  'Camping',
+  'Video Games',
+  'Esports',
+  'Chess',
+  'Hackathons',
+  'Open Source',
+  'Web3',
+  'Investing',
+  'Product Design',
+  'Volunteering',
+  'Language Learning',
+  'Anime',
+  'Fashion',
+  'Sneakers',
+  'Formula 1',
+  'College Football',
 ];
 
 export const MIDPOINT_COFFEE_SPOTS: CoffeeSpotSuggestion[] = [
@@ -72,7 +146,7 @@ export const INITIAL_PROFILES: UserProfile[] = [
     distanceText: 'Within 0.4 mi',
     bio: 'CS junior training small language models. Always up for Stone Summit bouldering or debating vector search over a cortado.',
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-    intent: 'co-founder',
+    intents: ['co-founder', 'find-mentor'],
     hobbies: ['AI Startups', 'Bouldering', 'Pour-Over Coffee'],
     workHistory: [
       { company: 'GT VIP Autonomous Agents Lab', role: 'Undergraduate AI Researcher', period: '2024 - Present', isCurrent: true },
@@ -99,7 +173,7 @@ export const INITIAL_PROFILES: UserProfile[] = [
     distanceText: 'Within 1.1 mi',
     bio: 'ISyE ’18. Building payments infra at Stripe. Running the BeltLine 10k and advising early student founders on go-to-market.',
     avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
-    intent: 'mentorship',
+    intents: ['give-mentorship', 'co-founder'],
     hobbies: ['Running', 'Fintech', 'Pour-Over Coffee'],
     workHistory: [
       { company: 'Stripe', role: 'Senior Product Lead (Payments Rails)', period: '2021 - Present', isCurrent: true },
@@ -128,7 +202,7 @@ export const INITIAL_PROFILES: UserProfile[] = [
     distanceText: 'Within 0.8 mi',
     bio: 'Senior ME working on battery pack thermal management. Looking for climbing buddies and weekend running partners.',
     avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
-    intent: 'casual',
+    intents: ['casual', 'find-mentor'],
     hobbies: ['Bouldering', 'Running', 'Robotics'],
     workHistory: [
       { company: 'GT EcoCAR EV Team', role: 'Battery Thermal Lead', period: '2023 - Present', isCurrent: true },
@@ -156,7 +230,7 @@ export const INITIAL_PROFILES: UserProfile[] = [
     distanceText: 'SF Bay Area Hub',
     bio: 'GT CS ’20. LLM evaluations and interpretability at Anthropic. Visiting ATL for homecoming week, love chatting AI startups & specialty roast.',
     avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop&q=80',
-    intent: 'co-founder',
+    intents: ['co-founder', 'find-mentor'],
     hobbies: ['AI Startups', 'Pour-Over Coffee', 'Bouldering'],
     workHistory: [
       { company: 'Anthropic', role: 'Research Engineer (Model Interpretability)', period: '2022 - Present', isCurrent: true },
@@ -184,7 +258,7 @@ export const INITIAL_PROFILES: UserProfile[] = [
     distanceText: 'Within 0.2 mi',
     bio: 'Quantitative finance & crypto risk modeling. Let’s grab Dancing Goats and talk algorithmic trading and high-yield liquidity.',
     avatarUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&auto=format&fit=crop&q=80',
-    intent: 'study',
+    intents: ['study', 'find-mentor'],
     hobbies: ['Fintech', 'Pour-Over Coffee', 'Board Games'],
     workHistory: [
       { company: 'Scheller Student Managed Fund', role: 'Quantitative Analyst', period: '2024 - Present', isCurrent: true },
@@ -211,7 +285,7 @@ export const INITIAL_PROFILES: UserProfile[] = [
     distanceText: 'NYC GT Alumni Club',
     bio: 'GT ECE ’17. High frequency trading systems at Two Sigma. Running the Central Park loop and mentoring Yellow Jackets moving to NYC.',
     avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&auto=format&fit=crop&q=80',
-    intent: 'mentorship',
+    intents: ['give-mentorship'],
     hobbies: ['Fintech', 'Running', 'Bouldering'],
     workHistory: [
       { company: 'Two Sigma', role: 'Quantitative Developer Lead', period: '2020 - Present', isCurrent: true },
@@ -240,7 +314,7 @@ export const INITIAL_PROFILES: UserProfile[] = [
     distanceText: 'Within 0.7 mi',
     bio: 'CubeSat orbital mechanics & propulsion. Avid climber at The Overlook and pour-over gear enthusiast.',
     avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop&q=80',
-    intent: 'casual',
+    intents: ['casual'],
     hobbies: ['Bouldering', 'Pour-Over Coffee', 'Robotics'],
     workHistory: [
       { company: 'Space Systems Design Lab (SSDL)', role: 'CubeSat Avionics Lead', period: '2023 - Present', isCurrent: true },
@@ -267,7 +341,7 @@ export const INITIAL_PROFILES: UserProfile[] = [
     distanceText: 'SF Bay Area Hub',
     bio: 'BME ’19. Clinical trials & AI diagnostics at Verily. Passionate about marathon training and connecting GT bio-engineers with tech.',
     avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80',
-    intent: 'mentorship',
+    intents: ['give-mentorship', 'casual'],
     hobbies: ['Running', 'AI Startups', 'Hiking'],
     workHistory: [
       { company: 'Verily Life Sciences', role: 'Bio-Data Scientist (Clinical AI)', period: '2021 - Present', isCurrent: true },
@@ -293,7 +367,7 @@ export const INITIAL_PROFILES: UserProfile[] = [
     distanceText: 'Within 0.5 mi',
     bio: 'Freshman hacking on distributed databases and Rust. Always down for late night pickleball or hackathons.',
     avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=400&auto=format&fit=crop&q=80',
-    intent: 'study',
+    intents: ['study', 'give-mentorship'],
     hobbies: ['AI Startups', 'Pickleball', 'Fintech'],
     workHistory: [
       { company: 'GT HackGT Organizing Team', role: 'Tech Infrastructure Lead', period: '2024 - Present', isCurrent: true },
@@ -320,7 +394,7 @@ export const INITIAL_PROFILES: UserProfile[] = [
     distanceText: 'Within 1.3 mi',
     bio: 'M.Arch ’16. Designing sustainable public spaces in ATL. Sourdough baker, weekend boulderer, and Midtown history buff.',
     avatarUrl: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?w=400&auto=format&fit=crop&q=80',
-    intent: 'casual',
+    intents: ['casual'],
     hobbies: ['Bouldering', 'Baking', 'Hiking'],
     workHistory: [
       { company: 'Perkins&Will', role: 'Senior Urban Architect', period: '2019 - Present', isCurrent: true },
@@ -544,7 +618,7 @@ export const INITIAL_CURRENT_USER: UserProfile = {
   distanceText: 'Within 1.1 mi',
   bio: 'ISyE ’18. Building payments infra at Stripe. Running the BeltLine 10k and advising early student founders on go-to-market.',
   avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
-  intent: 'mentorship',
+  intents: ['give-mentorship', 'co-founder'],
   hobbies: ['Running', 'Fintech', 'Pour-Over Coffee'],
   workHistory: [
     { company: 'Stripe', role: 'Senior Product Lead (Payments Rails)', period: '2021 - Present', isCurrent: true },
@@ -574,7 +648,7 @@ export const DEMO_STUDENT_USER: UserProfile = {
   distanceText: 'Within 0.4 mi',
   bio: 'CS junior training small language models. Always up for Stone Summit bouldering or debating vector search over a cortado.',
   avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
-  intent: 'co-founder',
+  intents: ['co-founder', 'find-mentor'],
   hobbies: ['AI Startups', 'Bouldering', 'Pour-Over Coffee'],
   workHistory: [
     { company: 'GT VIP Autonomous Agents Lab', role: 'Undergraduate AI Researcher', period: '2024 - Present', isCurrent: true },
@@ -608,7 +682,7 @@ export const HOBBY_ECOSYSTEM_PROFILES: UserProfile[] = [
     distanceText: 'Within 0.9 mi',
     bio: "CS '19. Building Maps infra at Google's Midtown office. Runs Sunday sand volleyball at Piedmont and loves mentoring GT engineers.",
     avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80',
-    intent: 'mentorship',
+    intents: ['give-mentorship'],
     hobbies: ['Volleyball', 'Pour-Over Coffee', 'Hiking'],
     workHistory: [
       { company: 'Google', role: 'Senior Software Engineer (Maps)', period: '2021 - Present', isCurrent: true },
@@ -636,7 +710,7 @@ export const HOBBY_ECOSYSTEM_PROFILES: UserProfile[] = [
     distanceText: 'Within 1.0 mi',
     bio: "ISyE '21. PM on Stripe Billing. Weekend sourdough obsessive, Tuesday-night volleyball regular, always happy to talk APM recruiting.",
     avatarUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
-    intent: 'mentorship',
+    intents: ['give-mentorship', 'casual'],
     hobbies: ['Baking', 'Volleyball', 'Fintech'],
     workHistory: [
       { company: 'Stripe', role: 'Product Manager (Billing)', period: '2022 - Present', isCurrent: true },
@@ -664,7 +738,7 @@ export const HOBBY_ECOSYSTEM_PROFILES: UserProfile[] = [
     distanceText: 'Within 0.3 mi',
     bio: 'CS sophomore, club volleyball setter, and the person who brings croissants to every study session. Hunting SWE internships.',
     avatarUrl: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=400&auto=format&fit=crop&q=80',
-    intent: 'study',
+    intents: ['study', 'find-mentor'],
     hobbies: ['Baking', 'Volleyball', 'Board Games'],
     workHistory: [
       { company: 'GT Club Volleyball', role: 'Treasurer & Setter', period: '2024 - Present', isCurrent: true },
@@ -764,7 +838,14 @@ export function formatHobbies(list: string[] = []): string[] {
   });
 }
 
-const normalizeProfile = <T extends UserProfile>(profile: T): T => ({ ...profile, hobbies: formatHobbies(profile.hobbies) });
+const normalizeProfile = <T extends UserProfile>(profile: T): T => {
+  const { intent: _legacy, ...rest } = profile as T & { intent?: string };
+  return {
+    ...(rest as T),
+    hobbies: formatHobbies(profile.hobbies),
+    intents: resolveIntents(profile as T & { intent?: string }),
+  };
+};
 const normalizeEvent = (event: EventItem): EventItem => ({ ...event, tags: formatHobbies(event.tags) });
 
 // Automatic TTL expiration helper
@@ -870,10 +951,15 @@ export function getCareerOverlapBadges(viewer: UserProfile, candidate: UserProfi
   return badges;
 }
 
+// Each intent that genuinely lines up (e.g. mentor <-> mentee) is worth as much as two shared hobbies
+export const SWIPE_MUTUAL_INTENT_WEIGHT = 20;
+
 export function buildSwipeCandidate(viewer: UserProfile, profile: UserProfile): SwipeCandidate {
   const sharedHobbies = getSharedHobbies(viewer, profile);
   const careerBadges = getCareerOverlapBadges(viewer, profile);
+  const mutualIntents = getMutualIntents(viewer, profile);
   const overlapScore =
+    mutualIntents.length * SWIPE_MUTUAL_INTENT_WEIGHT +
     sharedHobbies.length * 10 +
     careerBadges.reduce((sum, b) => {
       if (b.kind === 'works-at') return sum + 30;
@@ -889,6 +975,7 @@ export function buildSwipeCandidate(viewer: UserProfile, profile: UserProfile): 
     targetRoles: profile.targetRoles || [],
     sharedHobbies,
     careerBadges,
+    mutualIntents,
     overlapScore,
   };
 }
@@ -1052,17 +1139,18 @@ export function getEventScoreDetails(
   // 3. Host & intent alignment
   if (event.isHostAlum) {
     score += user.role === 'student' ? 20 : 15;
-    matchReasons.push(user.role === 'student' ? 'Alumni Mentorship Pop-Up' : 'Alumni Peer Network');
+    matchReasons.push(user.role === 'student' ? 'Alumni-Hosted Pop-Up' : 'Alumni Peer Network');
   }
-  if (user.intent === 'co-founder' && (event.category === 'startup' || event.tags.some((t) => normalize(t) === 'ai startups'))) {
+  if (user.intents.includes('co-founder') && (event.category === 'startup' || event.tags.some((t) => normalize(t) === 'ai startups'))) {
     score += 25;
     matchReasons.push('Aligned with Co-Founder Intent');
   }
-  if (user.intent === 'mentorship' && (event.isHostAlum || event.category === 'networking')) {
+  const wantsMentorship = user.intents.includes('find-mentor') || user.intents.includes('give-mentorship');
+  if (wantsMentorship && (event.isHostAlum || event.category === 'networking')) {
     score += 25;
     matchReasons.push('Mentorship Focus');
   }
-  if (user.intent === 'casual' && ['coffee', 'social', 'sports'].includes(event.category)) {
+  if (user.intents.includes('casual') && ['coffee', 'social', 'sports'].includes(event.category)) {
     score += 20;
   }
 
@@ -1137,6 +1225,14 @@ export class Repository {
       // Deferred so listeners never setState while another component is rendering
       setTimeout(() => window.dispatchEvent(new Event(USER_CHANGED_EVENT)), 0);
     }
+  }
+
+  // Merge a change into the current user and the shared directory (for views without AuthContext)
+  static updateCurrentUser(updates: Partial<UserProfile>): UserProfile {
+    const updated = { ...this.getCurrentUser(), ...updates };
+    this.setCurrentUser(updated);
+    this.saveProfile(updated);
+    return updated;
   }
 
   static getEvents(): EventItem[] {
@@ -1332,6 +1428,15 @@ export class Repository {
       try {
         const data = localStorage.getItem(STORAGE_KEYS.MATCHES);
         if (data) return this.dedupeMatches(JSON.parse(data));
+        if (data) {
+          return (JSON.parse(data) as (MatchItem & { mutualIntent?: string })[]).map(
+            ({ mutualIntent: _legacy, ...m }) => ({
+              ...m,
+              partnerProfile: normalizeProfile(m.partnerProfile),
+              mutualIntents: Array.isArray(m.mutualIntents) ? m.mutualIntents : [],
+            })
+          );
+        }
       } catch (e) {
         console.warn('Error reading matches:', e);
       }
@@ -1403,6 +1508,101 @@ export class Repository {
     }
   }
 
+  // Existing match between the viewer and a partner (either direction), if any
+  static findMatchWith(viewerId: string, partnerId: string): MatchItem | undefined {
+    return this.getMatches().find(
+      (m) =>
+        (m.user1Id === viewerId && m.user2Id === partnerId) || (m.user1Id === partnerId && m.user2Id === viewerId)
+    );
+  }
+
+  // Messaging needs a match id; Re-Connect contacts may not have one yet
+  static getOrCreateMatch(viewer: UserProfile, partner: UserProfile): MatchItem {
+    const existing = this.findMatchWith(viewer.id, partner.id);
+    if (existing) return existing;
+    const match: MatchItem = {
+      id: `match_${viewer.id}_${partner.id}`,
+      user1Id: viewer.id,
+      user2Id: partner.id,
+      partnerProfile: partner,
+      matchedAt: Date.now(),
+      status: 'matched',
+      sharedHobbies: getSharedHobbies(viewer, partner),
+      mutualIntents: getMutualIntents(viewer, partner),
+    };
+    this.saveMatch(match);
+    return match;
+  }
+
+  private static readAllMessages(): ChatMessage[] {
+    if (!this.isSafeStorageAvailable()) return [];
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.MESSAGES) || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  // Thread for one match, oldest first. Includes pending (future `sentAt`) simulated replies.
+  static getMessages(matchId: string): ChatMessage[] {
+    return this.readAllMessages()
+      .filter((m) => m.matchId === matchId)
+      .sort((a, b) => a.sentAt - b.sentAt);
+  }
+
+  /**
+   * Scheduling is unlocked only once both people have actually talked (each has sent at
+   * least one delivered message), so availability can be worked out in chat first.
+   */
+  static hasConversation(matchId: string, viewerId: string, now: number = Date.now()): boolean {
+    const delivered = this.getMessages(matchId).filter((m) => m.sentAt <= now);
+    return delivered.some((m) => m.senderId === viewerId) && delivered.some((m) => m.senderId !== viewerId);
+  }
+
+  /**
+   * Appends a message. When the viewer sends their first message in a thread and a
+   * `replyFrom` partner is given, a simulated reply is queued DEMO_REPLY_DELAY_MS later.
+   */
+  static sendMessage(
+    matchId: string,
+    sender: UserProfile,
+    text: string,
+    replyFrom?: UserProfile
+  ): ChatMessage | null {
+    const body = text.trim();
+    if (!body) return null;
+    const all = this.readAllMessages();
+    const now = Date.now();
+    const message: ChatMessage = {
+      id: `msg_${now}_${Math.random().toString(36).slice(2, 8)}`,
+      matchId,
+      senderId: sender.id,
+      text: body,
+      sentAt: now,
+    };
+    const next = [...all, message];
+
+    const partnerHasSpoken = all.some((m) => m.matchId === matchId && m.senderId === replyFrom?.id);
+    if (replyFrom && !partnerHasSpoken) {
+      next.push({
+        id: `msg_${now}_reply`,
+        matchId,
+        senderId: replyFrom.id,
+        text: buildDemoPartnerReply(replyFrom, sender),
+        sentAt: now + DEMO_REPLY_DELAY_MS,
+      });
+    }
+
+    if (this.isSafeStorageAvailable()) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Error saving message:', e);
+      }
+    }
+    return message;
+  }
+
   /**
    * Launches an imported profile into the live ecosystem: makes it the current user,
    * registers it in the shared directory, and seeds the Volleyball / Baking profiles
@@ -1441,6 +1641,7 @@ export class Repository {
         localStorage.removeItem(STORAGE_KEYS.MATCHES);
         localStorage.removeItem(STORAGE_KEYS.SWIPES);
         localStorage.removeItem(STORAGE_KEYS.MEETUPS);
+        localStorage.removeItem(STORAGE_KEYS.MESSAGES);
         localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(INITIAL_EVENTS));
         localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(INITIAL_PROFILES));
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(INITIAL_CURRENT_USER));

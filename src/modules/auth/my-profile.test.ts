@@ -43,7 +43,11 @@ describe('My Profile drawer (career profile editing)', () => {
     fireEvent.change(roleInput, { target: { value: 'APM / Product Manager' } });
     fireEvent.keyDown(roleInput, { key: 'Enter' });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Hiking' }));
+    // Hobbies: type to search, then pick from the dropdown
+    const hobbyInput = screen.getByRole('combobox', { name: 'Add a hobby' });
+    fireEvent.focus(hobbyInput);
+    fireEvent.change(hobbyInput, { target: { value: 'hik' } });
+    fireEvent.mouseDown(screen.getByRole('option', { name: 'Hiking' }));
     fireEvent.click(screen.getByTestId('save-profile-button'));
 
     const saved = Repository.getCurrentUser();
@@ -54,5 +58,20 @@ describe('My Profile drawer (career profile editing)', () => {
 
     const inDirectory = Repository.getProfiles().find((p) => p.id === DEMO_STUDENT_USER.id);
     expect(inDirectory?.targetCompanies).toContain('Delta Air Lines');
+  });
+
+  it('saves a location preference (area + radius) from My Profile', () => {
+    renderDrawer();
+    const section = screen.getByTestId('profile-location');
+    expect(section.textContent).toContain('Location Preference');
+    fireEvent.change(screen.getByTestId('location-area'), { target: { value: 'west-midtown' } });
+    fireEvent.click(screen.getByTestId('radius-2'));
+    fireEvent.click(screen.getByTestId('save-profile-button'));
+
+    expect(Repository.getCurrentUser().locationPreference).toMatchObject({
+      areaId: 'west-midtown',
+      label: 'West Midtown',
+      radiusMiles: 2,
+    });
   });
 });

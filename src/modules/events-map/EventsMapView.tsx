@@ -18,6 +18,9 @@ import {
   RECOMMENDED_MAX_COUNT,
 } from '../../shared/data/repository';
 import { LayoutMode } from '../../shared/ui/layout';
+import { LocationPreferenceChip } from '../../shared/ui/LocationPreference';
+import { LocationPreference } from '../../shared/contracts';
+import { RADIUS_OPTIONS, distanceMiles, getLocationPreference, isWithinRadius, radiusLabel } from '../../shared/location';
 import { ScoredEventItem, ViewMode } from './types';
 import { MapContainerView } from './MapContainerView';
 import { EventListView } from './EventListView';
@@ -64,9 +67,16 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
     };
   }, [refreshData]);
 
-  // Score every event (hobbies + who is going), then flag the top matches as "Recommended For You"
+  // Location preference: only events inside your radius are shown, counted and recommended
+  const locationPref = useMemo(() => getLocationPreference(currentUser), [currentUser]);
+  const nearbyEvents = useMemo(() => events.filter((ev) => isWithinRadius(locationPref, ev)), [events, locationPref]);
+  const changeLocation = (pref: LocationPreference) =>
+    setCurrentUser(Repository.updateCurrentUser({ locationPreference: pref }));
+  const nextWiderRadius = RADIUS_OPTIONS[RADIUS_OPTIONS.indexOf(locationPref.radiusMiles) + 1];
+
+  // Score every nearby event (hobbies + who is going), then flag the top matches as "Recommended For You"
   const scoredEvents: ScoredEventItem[] = useMemo(() => {
-    const scored = events.map((ev): ScoredEventItem => {
+    const scored = nearbyEvents.map((ev): ScoredEventItem => {
       const details = getEventScoreDetails(ev, currentUser, allProfiles);
       const sharedHobbies = ev.tags.filter((tag) =>
         currentUser.hobbies.some((h) => h.toLowerCase() === tag.toLowerCase())
@@ -79,6 +89,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
         matchReasons: details.matchReasons,
         attendeeHighlightText: details.attendeeHighlightText,
         overlappingAttendees: details.overlappingAttendees,
+        distanceMiles: distanceMiles(locationPref, ev),
       };
     });
 
@@ -92,7 +103,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
       });
 
     return scored;
-  }, [events, currentUser, allProfiles]);
+  }, [nearbyEvents, currentUser, allProfiles, locationPref]);
 
   // Filter and sort scored events
   const filteredEvents = useMemo(() => {
@@ -190,7 +201,8 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
     { id: 'networking', label: 'Networking' },
   ];
 
-  const mapCenter: [number, number] = [brand.defaultCenter.lat, brand.defaultCenter.lng];
+  // Map follows the location preference (zoom is only used for "Anywhere"; otherwise it fits the radius)
+  const mapCenter: [number, number] = [locationPref.lat, locationPref.lng];
   const mapZoom = brand.defaultCenter.zoom;
 
   return (
@@ -204,7 +216,8 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
               <span>Campus Map Radar</span>
             </h2>
             <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#051E39] tp-on-navy text-tp-accent border border-[#B39051]/35">
-              {filteredEvents.length} Active Events
+              {filteredEvents.length} {filteredEvents.length === 1 ? 'Event' : 'Events'}
+              {locationPref.radiusMiles !== null ? ` within ${radiusLabel(locationPref.radiusMiles)}` : ''}
             </span>
           </div>
           {isWeb && (
@@ -269,6 +282,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
       {/* Filter and Search Bar */}
       <div className="bg-tp-surface p-3 rounded-2xl border border-[#B39051]/35 mb-4 shadow-sm space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <LocationPreferenceChip value={locationPref} onChange={changeLocation} className="sm:max-w-[260px]" />
           {/* Search bar */}
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-tp-subtle absolute left-3 top-1/2 -translate-y-1/2" />
@@ -316,6 +330,36 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
         </div>
       </div>
 
+      {/* Nothing inside the radius: say so and offer to widen it */}
+      {nearbyEvents.length === 0 && events.length > 0 && (
+        <div
+          data-testid="no-events-in-radius"
+          className="mb-4 p-3.5 rounded-2xl border border-dashed border-[#B39051]/50 bg-tp-surface flex flex-wrap items-center justify-between gap-2 text-xs"
+        >
+          <p className="text-tp-muted">
+            No pop-ups within {radiusLabel(locationPref.radiusMiles)} of {locationPref.label}.
+          </p>
+          <div className="flex gap-2">
+            {nextWiderRadius !== undefined && nextWiderRadius !== null && (
+              <button
+                type="button"
+                onClick={() => changeLocation({ ...locationPref, radiusMiles: nextWiderRadius })}
+                className="min-h-[34px] px-3 rounded-xl bg-[#B39051] text-[#051E39] font-bold"
+              >
+                Widen to {radiusLabel(nextWiderRadius)}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => changeLocation({ ...locationPref, radiusMiles: null })}
+              className="min-h-[34px] px-3 rounded-xl border border-[#B39051]/60 text-tp-accent font-semibold"
+            >
+              Show anywhere
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Content: Map or Fallback List/Grid */}
       {viewMode === 'map' ? (
         isWeb ? (
@@ -327,6 +371,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
                 currentUser={currentUser}
                 center={mapCenter}
                 zoom={mapZoom}
+                radiusMiles={locationPref.radiusMiles}
                 heightClass="h-[calc(100vh-230px)] min-h-[480px]"
                 onTileError={handleTileError}
                 onSelectEvent={handleSelectEvent}
@@ -356,6 +401,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
               currentUser={currentUser}
               center={mapCenter}
               zoom={mapZoom}
+              radiusMiles={locationPref.radiusMiles}
               heightClass="h-[44dvh] min-h-[280px]"
               onTileError={handleTileError}
               onSelectEvent={handleSelectEvent}

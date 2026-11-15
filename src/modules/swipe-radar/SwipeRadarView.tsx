@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, MeetupIntent, MatchItem, SwipeCandidate } from '../../shared/contracts';
 import {
   Repository,
@@ -7,12 +7,20 @@ import {
   isSamePerson,
 } from '../../shared/data/repository';
 import {
+  INTENT_CATALOG,
+  INTENT_ORDER,
+  describeMutualIntent,
+  getMutualIntents,
+  isIntentCompatible,
+} from '../../shared/intents';
+import {
   BadgeCheck,
+  ChevronDown,
   ChevronUp,
   Briefcase,
-  Coffee,
   Handshake,
   MapPin,
+  MessageCircle,
   PartyPopper,
   RotateCcw,
   Sparkles,
@@ -23,10 +31,20 @@ import {
   Zap,
 } from 'lucide-react';
 import { LayoutMode } from '../../shared/ui/layout';
+import { LocationPreferenceChip } from '../../shared/ui/LocationPreference';
+import { LocationPreference } from '../../shared/contracts';
+import {
+  RADIUS_OPTIONS,
+  distanceFromPreference,
+  formatDistance,
+  getLocationPreference,
+  isWithinRadius,
+  profileLocation,
+  radiusLabel,
+} from '../../shared/location';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
-import { SchedulerDrawer } from '../scheduler';
+import { ChatDrawer } from '../scheduler';
 import { MatchBreakdownCard } from './MatchBreakdownCard';
-import { useSwipeGesture, SwipeDirection } from './useSwipeGesture';
 
 interface SwipeRadarViewProps {
   onNavigateToPlans?: () => void;
@@ -34,13 +52,9 @@ interface SwipeRadarViewProps {
   layout?: LayoutMode;
 }
 
-const INTENT_LABELS: Record<string, string> = {
-  all: 'All Intents',
-  'co-founder': 'Co-Founder',
-  mentorship: 'Mentorship',
-  study: 'Study',
-  casual: 'Casual',
-};
+// 'for-you' = only people whose intents line up with mine (default); 'all' = everyone;
+// an intent id = people who have that intent (chip labels come from INTENT_CATALOG.filterLabel)
+type IntentFilter = 'for-you' | 'all' | MeetupIntent;
 
 const OPEN_TO_MEET_OPTIONS = [
   { label: '2 Hours', hours: 2, hint: 'Expires in 2h' },
@@ -57,7 +71,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
   const [currentUser, setCurrentUser] = useState<UserProfile>(Repository.getCurrentUser());
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
-  const [intentFilter, setIntentFilter] = useState<MeetupIntent>('all');
+  const [intentFilter, setIntentFilter] = useState<IntentFilter>('for-you');
   const [roleFilter, setRoleFilter] = useState<'all' | 'student' | 'alumni'>('all');
   const [activeDeck, setActiveDeck] = useState<'radar' | 'reconnect'>('radar');
 
@@ -67,14 +81,12 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
   // Match Modal state
   const [matchedProfile, setMatchedProfile] = useState<UserProfile | null>(null);
   const [showMatchModal, setShowMatchModal] = useState<boolean>(false);
-  const [currentMatchId, setCurrentMatchId] = useState<string | undefined>(undefined);
 
   // "Tap for full profile" sheet
   const [isFullProfileOpen, setIsFullProfileOpen] = useState<boolean>(false);
 
-  // Scheduler Drawer state
-  const [schedulerPartner, setSchedulerPartner] = useState<UserProfile | null>(null);
-  const [isSchedulerOpen, setIsSchedulerOpen] = useState<boolean>(false);
+  // Chat Drawer state: message a match first, then pick in-person or online
+  const [chatPartner, setChatPartner] = useState<UserProfile | null>(null);
 
   // Load profiles and currentUser from Repository
   // People you've already connected with leave the deck (snapshotted on load, so connecting
@@ -103,15 +115,29 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
   }, []);
 
   // Filter profiles and decorate them with viewer-relative hobby & career overlap
+  const locationPref = useMemo(() => getLocationPreference(currentUser), [currentUser]);
+  const changeLocation = (pref: LocationPreference) => {
+    setCurrentUser(Repository.updateCurrentUser({ locationPreference: pref }));
+    setCurrentIndex(0);
+  };
+  const nextWiderRadius = RADIUS_OPTIONS[RADIUS_OPTIONS.indexOf(locationPref.radiusMiles) + 1];
+
   const filteredProfiles: SwipeCandidate[] = useMemo(() => {
-    return profiles
+    const candidates = profiles
+      .filter((p) => isWithinRadius(locationPref, profileLocation(p)))
       .filter((p) => {
-        const matchesIntent = intentFilter === 'all' || p.intent === intentFilter || p.intent === 'all';
+        const matchesIntent =
+          intentFilter === 'all' ||
+          (intentFilter === 'for-you' ? isIntentCompatible(currentUser, p) : p.intents.includes(intentFilter));
         const matchesRole = roleFilter === 'all' || p.role === roleFilter;
         return matchesIntent && matchesRole;
       })
       .map((p) => buildSwipeCandidate(currentUser, p));
-  }, [profiles, intentFilter, roleFilter, currentUser]);
+    // Outside "For You", still surface people whose intents line up first (stable sort)
+    return intentFilter === 'for-you'
+      ? candidates
+      : [...candidates].sort((a, b) => Number(isIntentCompatible(currentUser, b)) - Number(isIntentCompatible(currentUser, a)));
+  }, [profiles, intentFilter, roleFilter, currentUser, locationPref]);
 
   // Current candidate card
   const currentCandidate = filteredProfiles[currentIndex] || null;
@@ -146,12 +172,11 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
       matchedAt: existingMatch?.matchedAt ?? Date.now(),
       status: existingMatch?.status ?? 'matched',
       sharedHobbies: candidateShared,
-      mutualIntent: candidate.intent,
+      mutualIntents: getMutualIntents(currentUser, candidate),
     };
     Repository.saveMatch(newMatch);
 
     // Trigger Double Opt-In Match Celebration
-    setCurrentMatchId(matchId);
     setMatchedProfile(candidate);
     setShowMatchModal(true);
 
@@ -159,17 +184,6 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
       setCurrentIndex((prev) => prev + 1);
     }
   };
-
-  const handleSwipe = useCallback(
-    (direction: SwipeDirection) => {
-      if (!currentCandidate) return;
-      if (direction === 'right') handleConnect(currentCandidate);
-      else handlePass();
-    },
-    // handlePass/handleConnect are recreated each render; these are the values they read
-    [currentCandidate, currentIndex, filteredProfiles.length, currentUser]
-  );
-  const gesture = useSwipeGesture(handleSwipe);
 
   useEffect(() => {
     setIsFullProfileOpen(false);
@@ -222,18 +236,34 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
 
   const isWeb = layout === 'web';
 
+  const candidateDistance = currentCandidate
+    ? distanceFromPreference(locationPref, profileLocation(currentCandidate))
+    : null;
+  const candidateDistanceText = candidateDistance !== null ? `${formatDistance(candidateDistance)} away` : null;
+
   // Card front stays scannable: top shared hobbies + top 1–2 career overlaps
   const cardHobbies = sharedHobbies.slice(0, 3);
   const cardCompanyBadges = companyBadges.slice(0, 2);
   const cardTargetingBadges = targetingBadges.slice(0, Math.max(0, 2 - cardCompanyBadges.length));
   const hasCardOverlap = cardHobbies.length + cardCompanyBadges.length + cardTargetingBadges.length > 0;
 
-  const chip = (active: boolean) =>
-    `shrink-0 px-2.5 min-h-[32px] rounded-full text-[11px] whitespace-nowrap transition ${
-      active
-        ? 'bg-[#B39051] text-[#051E39] font-bold'
-        : 'bg-tp-surface text-tp-muted border border-[#B39051]/35 hover:text-tp-ink'
+  // Candidate's own intents (max 2 on the card); the ones that complement mine come first
+  const complementOfMine = new Set((currentCandidate?.mutualIntents ?? []).map((i) => INTENT_CATALOG[i].complement));
+  const allCardIntents = (currentCandidate?.intents ?? [])
+    .map((id) => ({ id, mutual: complementOfMine.has(id) }))
+    .sort((a, b) => Number(b.mutual) - Number(a.mutual));
+  // Gold tags on the photo = only the intents that match mine (full list lives in the profile sheet)
+  const cardIntents = allCardIntents.filter(({ mutual }) => mutual);
+
+  const matchMutualIntents = matchedProfile ? getMutualIntents(currentUser, matchedProfile) : [];
+
+  // Native <select> (best on phones) styled as a pill; gold when narrowing the deck
+  const selectWrap = (active: boolean) =>
+    `relative flex items-center gap-1 min-h-[40px] pl-3 pr-2.5 rounded-xl border text-xs transition focus-within:ring-1 focus-within:ring-[#B39051] ${
+      active ? 'border-[#B39051] bg-tp-elevated text-tp-accent' : 'border-[#B39051]/35 bg-tp-surface text-tp-muted'
     }`;
+  const selectClass =
+    'appearance-none bg-transparent w-full min-w-0 pr-1 font-semibold text-tp-ink outline-none cursor-pointer truncate [&>option]:bg-tp-surface [&>optgroup]:bg-tp-surface';
 
   return (
     <div
@@ -304,38 +334,58 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
             <h3 className="text-sm font-black text-tp-ink">One-on-One Radar</h3>
             <p className="text-[11px] text-tp-muted">
               {currentCandidate
-                ? `Profile ${currentIndex + 1} of ${filteredProfiles.length} · Drag right to connect, left to pass`
-                : 'Swipe to meet Yellow Jackets who are open to meet'}
+                ? `Profile ${currentIndex + 1} of ${filteredProfiles.length}`
+                : 'Meet Yellow Jackets who are open to meet'}
             </p>
           </div>
 
-          {/* Filters: one scrollable row */}
-          <div className="shrink-0 -mx-3 px-3 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-            {(['all', 'student', 'alumni'] as const).map((r) => (
-              <button
-                key={r}
-                onClick={() => {
-                  setRoleFilter(r);
+          {/* Location preference: area + radius */}
+          <div className="shrink-0">
+            <LocationPreferenceChip value={locationPref} onChange={changeLocation} className="w-full" />
+          </div>
+
+          {/* Filters: two compact dropdowns (who + role) */}
+          <div className="shrink-0 grid grid-cols-[1fr_auto] gap-2">
+            <label className={selectWrap(intentFilter !== 'all')}>
+              <span className="sr-only">Show</span>
+              <select
+                data-testid="intent-filter"
+                value={intentFilter}
+                onChange={(e) => {
+                  setIntentFilter(e.target.value as IntentFilter);
                   setCurrentIndex(0);
                 }}
-                className={chip(roleFilter === r)}
+                className={selectClass}
               >
-                {r === 'all' ? 'All Roles' : r === 'alumni' ? 'Alumni' : 'Students'}
-              </button>
-            ))}
-            <span aria-hidden="true" className="shrink-0 w-px h-5 bg-[#B39051]/35 mx-0.5" />
-            {(['all', 'co-founder', 'mentorship', 'study', 'casual'] as MeetupIntent[]).map((intent) => (
-              <button
-                key={intent}
-                onClick={() => {
-                  setIntentFilter(intent);
+                <option value="for-you">For You</option>
+                <option value="all">Everyone</option>
+                <optgroup label="Looking for…">
+                  {INTENT_ORDER.map((id) => (
+                    <option key={id} value={id}>
+                      {INTENT_CATALOG[id].filterLabel}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+              <ChevronDown aria-hidden="true" className="w-4 h-4 shrink-0 pointer-events-none" />
+            </label>
+            <label className={selectWrap(roleFilter !== 'all')}>
+              <span className="sr-only">Role</span>
+              <select
+                data-testid="role-filter"
+                value={roleFilter}
+                onChange={(e) => {
+                  setRoleFilter(e.target.value as 'all' | 'student' | 'alumni');
                   setCurrentIndex(0);
                 }}
-                className={chip(intentFilter === intent)}
+                className={selectClass}
               >
-                {INTENT_LABELS[intent]}
-              </button>
-            ))}
+                <option value="all">All Roles</option>
+                <option value="student">Students</option>
+                <option value="alumni">Alumni</option>
+              </select>
+              <ChevronDown aria-hidden="true" className="w-4 h-4 shrink-0 pointer-events-none" />
+            </label>
           </div>
 
           {/* Card Stack Area */}
@@ -347,31 +397,14 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                   <div className="absolute inset-x-2 top-2 bottom-0 bg-tp-surface/40 rounded-3xl border border-[#B39051]/35 -z-10 transform scale-[0.96] translate-y-2 pointer-events-none" />
                 )}
 
-                {/* Top Interactive Card (drag right to connect, left to pass) */}
+                {/* Current profile card (Pass / Connect via the buttons below) */}
                 <div
                   key={currentCandidate.id}
                   data-testid="swipe-card"
-                  {...gesture.handlers}
-                  style={gesture.style}
-                  className={`tp-swipe-card relative bg-tp-surface border-2 border-[#B39051]/50 rounded-3xl overflow-hidden shadow-2xl flex flex-col cursor-grab active:cursor-grabbing ${
+                  className={`relative bg-tp-surface border-2 border-[#B39051]/50 rounded-3xl overflow-hidden shadow-2xl flex flex-col ${
                     isWeb ? '' : 'flex-1 min-h-[340px]'
                   }`}
                 >
-                  {/* Swipe intent stamps */}
-                  <span
-                    aria-hidden="true"
-                    style={{ opacity: gesture.connectProgress }}
-                    className="pointer-events-none absolute top-14 left-4 z-20 -rotate-12 px-3 py-1 rounded-xl border-4 border-[#B39051] text-tp-accent bg-[#051E39]/70 tp-on-navy text-xl font-black tracking-widest"
-                  >
-                    CONNECT
-                  </span>
-                  <span
-                    aria-hidden="true"
-                    style={{ opacity: gesture.passProgress }}
-                    className="pointer-events-none absolute top-14 right-4 z-20 rotate-12 px-3 py-1 rounded-xl border-4 border-rose-400 text-rose-300 bg-black/50 text-xl font-black tracking-widest"
-                  >
-                    PASS
-                  </span>
 
                   {/* Photo with name, class / major and current role */}
                   <div className={`relative w-full bg-[#051E39] tp-on-navy ${isWeb ? 'h-80' : 'flex-1 min-h-[150px]'}`}>
@@ -387,8 +420,10 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                       <div className="min-w-0 max-w-[75%] bg-[#051E39]/85 backdrop-blur-md border border-[#B39051]/50 text-tp-ink px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 truncate">
                         <MapPin className="w-3 h-3 text-tp-accent shrink-0" />
                         <span className="truncate">{currentCandidate.neighborhoodZone}</span>
-                        {currentCandidate.distanceText && (
-                          <span className="text-tp-accent font-bold shrink-0">· {currentCandidate.distanceText}</span>
+                        {candidateDistanceText && (
+                          <span data-testid="candidate-distance" className="text-tp-accent font-bold shrink-0">
+                            · {candidateDistanceText}
+                          </span>
                         )}
                       </div>
                       {currentCandidate.isOpenToMeet && (
@@ -414,14 +449,33 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                           <p className="text-[11px] text-tp-muted drop-shadow truncate">{currentCandidate.companyOrLab}</p>
                         )}
                       </div>
-                      <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-[#B39051] text-[#051E39] shrink-0 uppercase tracking-wide">
-                        {currentCandidate.intent}
-                      </span>
+                      {cardIntents.length > 0 && (
+                        <div
+                          className="flex flex-wrap justify-end gap-1 shrink-0 max-w-[50%]"
+                          data-testid="candidate-intents"
+                        >
+                          {cardIntents.map(({ id }) => (
+                            <span
+                              key={id}
+                              data-mutual
+                              className="text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-wide bg-[#B39051] text-[#051E39]"
+                            >
+                              {INTENT_CATALOG[id].badge}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {/* Overlap at a glance */}
                   <div className="shrink-0 px-3 pt-2.5 pb-1 space-y-1.5">
+                    {currentCandidate.mutualIntents.length > 0 && (
+                      <p data-testid="mutual-intent-reason" className="text-[11px] font-semibold text-tp-accent truncate">
+                        <Sparkles className="inline w-3 h-3 mr-1 -mt-0.5" />
+                        {describeMutualIntent(currentCandidate.mutualIntents[0], currentCandidate.name.split(' ')[0])}
+                      </p>
+                    )}
                     <div className="flex flex-wrap gap-1.5 max-h-[60px] overflow-hidden" data-testid="swipe-overlap-badges">
                       {cardCompanyBadges.map((badge) => (
                         <span
@@ -470,8 +524,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                   {/* Action Bar (Pass / Super Connect / Connect) */}
                   <div className="shrink-0 px-3 py-2.5 bg-tp-canvas border-t border-[#B39051]/35 flex items-center gap-3">
                     <button
-                      onClick={() => gesture.swipe('left')}
-                      disabled={gesture.isExiting}
+                      onClick={handlePass}
                       aria-label="Pass"
                       className="w-12 h-12 shrink-0 rounded-full bg-tp-elevated border border-red-500/40 text-red-400 hover:bg-red-500 hover:text-white transition flex items-center justify-center shadow-md"
                       title="Pass"
@@ -490,7 +543,6 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
 
                     <button
                       onClick={() => handleConnect(currentCandidate, false)}
-                      disabled={gesture.isExiting}
                       aria-label="Connect"
                       className="flex-1 min-h-[48px] px-4 rounded-2xl bg-[#B39051] text-[#051E39] font-bold text-sm hover:bg-[#8F713D] active:bg-[#8F713D] transition flex items-center justify-center gap-2 shadow-lg"
                       title="Connect & Meet"
@@ -508,12 +560,25 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                   <Users className="w-7 h-7" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-tp-ink">You're All Caught Up!</h3>
+                  <h3 className="text-lg font-bold text-tp-ink">
+                    {filteredProfiles.length === 0 ? 'No one here yet' : "You're All Caught Up!"}
+                  </h3>
                   <p className="text-xs text-tp-muted mt-1 max-w-xs mx-auto">
-                    You've reviewed all available Yellow Jackets in your radar for now.
+                    {filteredProfiles.length === 0
+                      ? `No Yellow Jackets match within ${radiusLabel(locationPref.radiusMiles)} of ${locationPref.label}.`
+                      : "You've reviewed all available Yellow Jackets in your radar for now."}
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 pt-2 max-w-xs mx-auto">
+                  {filteredProfiles.length === 0 && locationPref.radiusMiles !== null && (
+                    <button
+                      data-testid="widen-radius"
+                      onClick={() => changeLocation({ ...locationPref, radiusMiles: nextWiderRadius ?? null })}
+                      className="py-2.5 px-4 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition"
+                    >
+                      Widen to {radiusLabel(nextWiderRadius ?? null)}
+                    </button>
+                  )}
                   <button
                     onClick={() => setCurrentIndex(0)}
                     className="py-2.5 px-4 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition"
@@ -607,14 +672,11 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                     </div>
 
                     <button
-                      onClick={() => {
-                        setSchedulerPartner(profile);
-                        setIsSchedulerOpen(true);
-                      }}
+                      onClick={() => setChatPartner(profile)}
                       className="py-2 px-3 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition shrink-0 shadow"
                     >
-                      <Coffee className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
-                      Meet
+                      <MessageCircle className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
+                      Message
                     </button>
                   </div>
                 );
@@ -630,7 +692,6 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
         <MatchBreakdownCard
           candidate={activeDeck === 'radar' ? currentCandidate : null}
           viewer={currentUser}
-          upNext={filteredProfiles.slice(currentIndex + 1, currentIndex + 4)}
         />
       )}
 
@@ -741,10 +802,33 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
             <p className="text-xs text-tp-muted flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-tp-accent" />
               {currentCandidate.neighborhoodZone}
-              {currentCandidate.distanceText ? ` · ${currentCandidate.distanceText}` : ''}
+              {candidateDistanceText ? ` · ${candidateDistanceText}` : ''}
             </p>
 
             <p className="text-sm text-tp-ink leading-relaxed">{currentCandidate.bio}</p>
+
+            <section className="space-y-1.5" data-testid="full-profile-intents">
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-tp-accent">Looking for</h4>
+              {allCardIntents.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {allCardIntents.map(({ id, mutual }) => (
+                    <span
+                      key={id}
+                      data-mutual={mutual || undefined}
+                      className={`text-xs px-2.5 py-1 rounded-xl font-semibold ${
+                        mutual
+                          ? 'bg-[#B39051] text-[#051E39]'
+                          : 'bg-tp-elevated text-tp-muted border border-tp-line'
+                      }`}
+                    >
+                      {INTENT_CATALOG[id].label}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-tp-subtle">Open to anything.</p>
+              )}
+            </section>
 
             <section className="space-y-1.5">
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-tp-accent">Hobbies</h4>
@@ -823,7 +907,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                 type="button"
                 onClick={() => {
                   setIsFullProfileOpen(false);
-                  gesture.swipe('left');
+                  handlePass();
                 }}
                 className="px-4 min-h-[48px] rounded-xl border border-red-500/40 text-red-400 text-sm font-bold hover:bg-red-500/10"
               >
@@ -859,9 +943,17 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
               <h3 className="text-xl font-black text-tp-ink tracking-tight">
                 It's a Mutual Match!
               </h3>
-              <p className="text-xs text-tp-muted mt-1">
-                You and {matchedProfile.name} both want to connect on {matchedProfile.intent}!
-              </p>
+              {matchMutualIntents.length > 0 ? (
+                <ul data-testid="match-mutual-intents" className="text-xs text-tp-muted mt-1 space-y-0.5">
+                  {matchMutualIntents.map((i) => (
+                    <li key={i}>{describeMutualIntent(i, matchedProfile.name.split(' ')[0])}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-tp-muted mt-1">
+                  You and {matchedProfile.name} can now message each other.
+                </p>
+              )}
             </div>
 
             {/* Avatars side-by-side */}
@@ -902,36 +994,33 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                 type="button"
                 onClick={() => {
                   setShowMatchModal(false);
-                  setSchedulerPartner(matchedProfile);
-                  setIsSchedulerOpen(true);
+                  setChatPartner(matchedProfile);
                 }}
                 className="w-full py-3 px-4 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition shadow-lg flex items-center justify-center gap-2"
               >
-                <Coffee className="w-4 h-4" />
-                <span>Schedule Midpoint Coffee</span>
+                <MessageCircle className="w-4 h-4" />
+                <span>Send a Message</span>
               </button>
+
 
               <button
                 type="button"
                 onClick={() => setShowMatchModal(false)}
                 className="w-full py-2 text-xs text-tp-muted hover:text-tp-ink"
               >
-                Keep Swiping
+                Keep Browsing
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 6. Scheduler Drawer */}
-      <SchedulerDrawer
-        isOpen={isSchedulerOpen}
-        onClose={() => setIsSchedulerOpen(false)}
-        partner={schedulerPartner}
-        matchId={currentMatchId}
-        onScheduled={() => {
-          loadData();
-        }}
+      {/* 6. Chat Drawer */}
+      <ChatDrawer
+        isOpen={!!chatPartner}
+        onClose={() => setChatPartner(null)}
+        partner={chatPartner}
+        onScheduled={() => loadData()}
       />
     </div>
   );

@@ -3,6 +3,7 @@ import { render, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { SwipeRadarView } from './SwipeRadarView';
 import { Repository, DEMO_STUDENT_USER } from '../../shared/data/repository';
+import { areaPreference } from '../../shared/location';
 
 describe('SwipeRadarView Component', () => {
   beforeEach(() => {
@@ -10,7 +11,7 @@ describe('SwipeRadarView Component', () => {
   });
 
   it('renders student & alumni candidate card with fuzzy neighborhood badge and GT context', () => {
-    const { getByText, getAllByText } = render(
+    const { getByText, getAllByText, getByTestId } = render(
       React.createElement(SwipeRadarView, {})
     );
 
@@ -22,30 +23,34 @@ describe('SwipeRadarView Component', () => {
 
     // Fuzzy neighborhood badge
     expect(getByText('Midtown • Tech Square')).toBeDefined();
-    expect(getByText(/Within 0.4 mi/i)).toBeDefined();
+    // Distance is computed from the viewer's area (default: Georgia Tech Campus)
+    expect(getByTestId('candidate-distance').textContent).toContain('0.4 mi away');
 
-    // Intent pill
-    expect(getAllByText('co-founder').length).toBeGreaterThanOrEqual(1);
+    // Intent badges use catalog labels; both of Alex's intents complement Sarah's (mentor + co-founder)
+    const intentBadges = [...getByTestId('candidate-intents').querySelectorAll('span')];
+    expect(intentBadges.map((b) => b.textContent)).toEqual(['Seeking Mentor', 'Co-Founder']);
+    expect(intentBadges.every((b) => b.hasAttribute('data-mutual'))).toBe(true);
+    expect(getAllByText('Co-Founder').length).toBeGreaterThanOrEqual(1);
+    expect(getByTestId('mutual-intent-reason').textContent).toContain('Alex is looking for a mentor, and you mentor');
 
     // Shared hobby chips (both Sarah & Alex share 'Pour-Over Coffee'), capitalized and highlighted
     expect(getByText('Pour-Over Coffee').closest('[data-shared]')).not.toBeNull();
   });
 
-  it('advances to next candidate card when clicking pass (after the fly-out animation)', async () => {
-    const { getByText, getByTitle, findByText, queryByText } = render(
-      React.createElement(SwipeRadarView, {})
-    );
+  it('advances to the next profile immediately when clicking Pass', () => {
+    const { getByText, getByTitle, queryByText } = render(React.createElement(SwipeRadarView, {}));
 
     expect(getByText('Alex Chen')).toBeDefined();
     fireEvent.click(getByTitle('Pass'));
 
     // The viewer's own seed twin (Sarah Jenkins) is never shown, so Marcus is next
-    expect(await findByText('Marcus Vance')).toBeDefined();
+    expect(getByText('Marcus Vance')).toBeDefined();
     expect(queryByText('Sarah Jenkins')).toBeNull();
   });
 
   it('shows Career & Network Overlap badges ("Works at" / "Ex-" / "Targeting:") alongside shared hobbies', async () => {
-    Repository.setCurrentUser(DEMO_STUDENT_USER); // Student targeting Stripe, Anthropic, Google...
+    // Elena lives in SF, so look beyond the default 5 mi radius for this badge check
+    Repository.setCurrentUser({ ...DEMO_STUDENT_USER, locationPreference: { ...areaPreference('gt-campus', null) } });
     const { getByTitle, getAllByTestId, getByText, findByText } = render(
       React.createElement(SwipeRadarView, {})
     );
@@ -56,9 +61,8 @@ describe('SwipeRadarView Component', () => {
     expect(badges.some((t) => t?.includes('Works at Stripe'))).toBe(true);
     expect(getAllByTestId('targeting-pill')[0].textContent).toMatch(/Targeting: .+ @ .+/);
 
-    // Skip ahead to Elena: currently at Anthropic, previously at Google Brain
-    fireEvent.click(getByTitle('Pass'));
-    await findByText('Marcus Vance');
+    // "For You" skips Marcus (another mentee, no shared intent), so Elena (co-founder) is next:
+    // currently at Anthropic, previously at Google Brain
     fireEvent.click(getByTitle('Pass'));
     await findByText('Elena Rostova');
     const elenaBadges = getAllByTestId('career-overlap-badge').map((b) => b.textContent);
@@ -66,30 +70,18 @@ describe('SwipeRadarView Component', () => {
     expect(elenaBadges.some((t) => t?.includes('Ex-Google'))).toBe(true);
   });
 
-  it('supports drag gestures: dragging the card right past the threshold connects', async () => {
-    const { getByTestId, findByText } = render(React.createElement(SwipeRadarView, {}));
+  it('has no drag-to-swipe: dragging the card does nothing, only the buttons act', () => {
+    const { getByTestId, getByText, queryByText } = render(React.createElement(SwipeRadarView, {}));
     const card = getByTestId('swipe-card');
 
     fireEvent.pointerDown(card, { clientX: 100, clientY: 200, pointerId: 1 });
-    fireEvent.pointerMove(card, { clientX: 180, clientY: 205, pointerId: 1 });
-    fireEvent.pointerMove(card, { clientX: 300, clientY: 210, pointerId: 1 });
-    fireEvent.pointerUp(card, { clientX: 300, clientY: 210, pointerId: 1 });
+    fireEvent.pointerMove(card, { clientX: 400, clientY: 210, pointerId: 1 });
+    fireEvent.pointerUp(card, { clientX: 400, clientY: 210, pointerId: 1 });
 
-    expect(await findByText("It's a Mutual Match!")).toBeDefined();
-    expect(Repository.getMatches()[0].partnerProfile.name).toBe('Alex Chen');
-  });
-
-  it('snaps back without swiping when the drag is too short', async () => {
-    const { getByTestId, getByText } = render(React.createElement(SwipeRadarView, {}));
-    const card = getByTestId('swipe-card');
-
-    fireEvent.pointerDown(card, { clientX: 100, clientY: 200, pointerId: 1 });
-    fireEvent.pointerMove(card, { clientX: 140, clientY: 200, pointerId: 1 });
-    fireEvent.pointerUp(card, { clientX: 140, clientY: 200, pointerId: 1 });
-
-    await new Promise((r) => setTimeout(r, 300));
     expect(getByText('Alex Chen')).toBeDefined();
     expect(Repository.getMatches().length).toBe(0);
+    expect(queryByText('CONNECT')).toBeNull();
+    expect(queryByText(/Drag right/)).toBeNull();
   });
 
   it('renders the Career & Hobby Match Breakdown card in the web layout', () => {
@@ -97,10 +89,11 @@ describe('SwipeRadarView Component', () => {
     const breakdown = getByTestId('match-breakdown-card');
     expect(breakdown.textContent).toContain('Career & Hobby Match Breakdown');
     expect(breakdown.textContent).toContain('Alex Chen');
+    expect(breakdown.textContent).not.toContain('Up next');
   });
 
   it('triggers double opt-in match modal when clicking connect and persists match in Repository', () => {
-    const { getByText, getByTitle } = render(
+    const { getByText, getByTitle, queryByText } = render(
       React.createElement(SwipeRadarView, {})
     );
 
@@ -109,7 +102,9 @@ describe('SwipeRadarView Component', () => {
 
     // Mutual Match Modal should appear
     expect(getByText("It's a Mutual Match!")).toBeDefined();
-    expect(getByText(/Schedule Midpoint Coffee/i)).toBeDefined();
+    // Talk first: the only next step offered on a fresh match is messaging
+    expect(getByText(/Send a Message/i)).toBeDefined();
+    expect(queryByText(/Schedule/i)).toBeNull();
 
     // Match should be saved in Repository
     const matches = Repository.getMatches();
@@ -209,5 +204,89 @@ describe('SwipeRadarView Component', () => {
     const { container, getByRole } = render(React.createElement(SwipeRadarView, {}));
     fireEvent.click(getByRole('button', { name: /^(Change|Go Live)$/ }));
     expect(container.ownerDocument.body.textContent).not.toMatch(/\bTTL\b/);
+  });
+
+  it('defaults to "For You" (intent-compatible people) and can widen to Everyone', () => {
+    Repository.setCurrentUser(DEMO_STUDENT_USER); // wants a co-founder + a mentor
+    const { getByTestId, queryByText, getByText } = render(React.createElement(SwipeRadarView, {}));
+
+    expect((getByTestId('intent-filter') as HTMLSelectElement).value).toBe('for-you');
+    expect(getByText(/Profile 1 of/).textContent).not.toContain('of 0');
+    // Marcus (casual + find-mentor) has nothing that complements this viewer
+    expect(queryByText('Marcus Vance')).toBeNull();
+
+    fireEvent.change(getByTestId('intent-filter'), { target: { value: 'all' } });
+    // Everyone: compatible people stay first, the rest follow
+    expect(getByText('Sarah Jenkins')).toBeDefined();
+    const total = Number(getByText(/Profile 1 of/).textContent!.match(/of (\d+)/)![1]);
+    expect(total).toBeGreaterThan(5);
+  });
+
+  it('match modal only claims intents that genuinely line up', () => {
+    const { getByTitle, getByTestId } = render(React.createElement(SwipeRadarView, {}));
+    fireEvent.click(getByTitle('Connect & Meet')); // Sarah (mentor + co-founder) x Alex (co-founder + mentee)
+    const lines = getByTestId('match-mutual-intents').textContent!;
+    expect(lines).toContain('Alex is looking for a mentor, and you mentor');
+    expect(lines).toContain('You both want co-founders');
+    const saved = Repository.getMatches()[0];
+    expect(saved.mutualIntents).toEqual(['give-mentorship', 'co-founder']);
+  });
+
+  it('gold tags on the photo show only matching intents; the full profile lists all of them', () => {
+    // Sarah (viewer) mentors + wants co-founders
+    const alex = Repository.getProfiles().find((p) => p.id === 'user_alex_chen')!;
+    Repository.saveProfile({ ...alex, intents: ['find-mentor', 'co-founder', 'study', 'casual', 'roommate'] });
+    const { getByTestId, getByText } = render(React.createElement(SwipeRadarView, {}));
+
+    expect(getByText('Alex Chen')).toBeDefined();
+    const tags = [...getByTestId('candidate-intents').querySelectorAll('span')].map((t) => t.textContent);
+    expect(tags).toEqual(['Seeking Mentor', 'Co-Founder']); // study / casual / roommate don't match Sarah
+
+    fireEvent.click(getByText('Tap for full profile'));
+    const full = getByTestId('full-profile-intents');
+    expect(full.querySelectorAll('span').length).toBe(5);
+    expect(full.querySelectorAll('[data-mutual]').length).toBe(2);
+    expect(full.textContent).toContain('Housing / Roommates');
+  });
+
+  it('shows no intent tags on the photo when nothing matches', () => {
+    // A viewer who is open to anything sees everyone (Alex first) but has no intents to match
+    Repository.setCurrentUser({ ...Repository.getCurrentUser(), intents: [] });
+    const { getByText, queryByTestId } = render(React.createElement(SwipeRadarView, {}));
+    expect(getByText('Alex Chen')).toBeDefined();
+    expect(queryByTestId('candidate-intents')).toBeNull();
+  });
+
+  it('only shows people inside the location radius, and the chip changes it', () => {
+    // Default: Georgia Tech Campus, 5 mi. Elena (SF) and David (NYC) are out of range.
+    const { getByTestId, getByText, queryByText } = render(React.createElement(SwipeRadarView, {}));
+    expect(getByTestId('location-chip').textContent).toContain('Georgia Tech Campus');
+    fireEvent.change(getByTestId('intent-filter'), { target: { value: 'all' } });
+    const total = () => Number(getByText(/Profile 1 of/).textContent!.match(/of (\d+)/)![1]);
+    const nearbyCount = total();
+
+    // Switch the area to San Francisco: the SF alumni appear, Atlanta people drop out
+    fireEvent.click(getByTestId('location-chip'));
+    fireEvent.change(getByTestId('location-area'), { target: { value: 'sf' } });
+    fireEvent.click(getByTestId('location-done'));
+    expect(getByTestId('location-chip').textContent).toContain('San Francisco');
+    expect(queryByText('Alex Chen')).toBeNull();
+    expect(total()).toBeLessThan(nearbyCount);
+    expect(Repository.getCurrentUser().locationPreference?.areaId).toBe('sf');
+
+    // Anywhere: everyone
+    fireEvent.click(getByTestId('location-chip'));
+    fireEvent.click(getByTestId('radius-anywhere'));
+    fireEvent.click(getByTestId('location-done'));
+    expect(total()).toBeGreaterThan(nearbyCount);
+  });
+
+  it('offers to widen the radius when nobody is in range', () => {
+    Repository.setCurrentUser({ ...Repository.getCurrentUser(), locationPreference: areaPreference('decatur', 0.5) });
+    const { getByTestId, getByText } = render(React.createElement(SwipeRadarView, {}));
+    expect(getByText('No one here yet')).toBeDefined();
+    expect(getByTestId('widen-radius').textContent).toContain('1 mi');
+    fireEvent.click(getByTestId('widen-radius'));
+    expect(Repository.getCurrentUser().locationPreference?.radiusMiles).toBe(1);
   });
 });

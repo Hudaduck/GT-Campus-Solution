@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarDays, Coffee, Zap, MapPin, Clock, Download, Ticket, Map as MapIcon, Users } from 'lucide-react';
+import { CalendarDays, Coffee, Zap, MapPin, Clock, Download, Ticket, Map as MapIcon, Users, MessageCircle, Video } from 'lucide-react';
 import { EventItem, MatchItem, CalendarMeetup, UserProfile } from '../../shared/contracts';
 import { Repository, USER_CHANGED_EVENT } from '../../shared/data/repository';
 import { LayoutMode } from '../../shared/ui/layout';
 import { generateIcsFile, generateGoogleCalendarUrl, downloadIcsFile } from './calendarUtils';
 import { SchedulerDrawer } from './SchedulerDrawer';
 import { getCategoryLabel } from '../../shared/ui/categoryIcons';
+import { ChatDrawer } from './ChatDrawer';
 
 interface MyPlansViewProps {
   onNavigateToRadar?: () => void;
@@ -28,6 +29,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
   const [schedulerPartner, setSchedulerPartner] = useState<UserProfile | null>(null);
   const [schedulerMatchId, setSchedulerMatchId] = useState<string | undefined>(undefined);
   const [isSchedulerOpen, setIsSchedulerOpen] = useState<boolean>(false);
+  const [chatPartner, setChatPartner] = useState<UserProfile | null>(null);
 
   const loadData = () => {
     const user = Repository.getCurrentUser();
@@ -118,7 +120,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
             <span>My Plans & Connections</span>
           </h2>
           <p className="text-xs text-tp-muted mt-0.5">
-            Confirmed pop-up RSVPs, 1-on-1 coffee chats, and mutual Yellow Jacket matches.
+            Confirmed pop-up RSVPs, 1-on-1 meetups (in person or online), and mutual Yellow Jacket matches.
           </p>
         </div>
 
@@ -174,7 +176,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-tp-accent flex items-center gap-2">
               <Coffee className="w-3.5 h-3.5" />
-              <span>Scheduled 1-on-1 Coffee Meetups ({meetups.length})</span>
+              <span>Scheduled 1-on-1 Meetups ({meetups.length})</span>
             </h3>
           </div>
 
@@ -182,7 +184,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
             <div className="p-6 bg-tp-surface/80 rounded-2xl border border-dashed border-[#B39051]/35 text-center space-y-2">
               <p className="text-sm text-tp-muted">No scheduled 1-on-1 meetups yet.</p>
               <p className="text-xs text-tp-subtle">
-                Match with students and alumni on Swipe Radar, then pick a midpoint coffee spot.
+                Find students and alumni in Connect 1-on-1, message them, then meet in person or online.
               </p>
               {onNavigateToRadar && (
                 <button
@@ -190,7 +192,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                   className="mt-2 px-4 py-2 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition inline-flex items-center gap-1.5"
                 >
                   <Zap className="w-3.5 h-3.5" />
-                  <span>Open Swipe Radar</span>
+                  <span>Open Connect 1-on-1</span>
                 </button>
               )}
             </div>
@@ -227,12 +229,30 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                     {/* Location & Time */}
                     <div className="mt-3.5 bg-tp-elevated p-3 rounded-xl border border-[#B39051]/35 space-y-1.5">
                       <div className="flex items-center gap-2 text-xs text-tp-ink">
-                        <MapPin className="w-3.5 h-3.5 shrink-0 text-tp-accent" />
+                        {meetup.format === 'online' ? (
+                          <Video className="w-3.5 h-3.5 shrink-0 text-tp-accent" />
+                        ) : (
+                          <MapPin className="w-3.5 h-3.5 shrink-0 text-tp-accent" />
+                        )}
                         <span className="font-semibold">{meetup.locationName}</span>
+                        <span className="text-[10px] uppercase tracking-wider text-tp-subtle">
+                          {meetup.format === 'online' ? 'Online' : 'In person'}
+                        </span>
                       </div>
-                      <p className="text-[11px] text-tp-muted pl-6">
-                        {meetup.locationAddress}
-                      </p>
+                      {meetup.meetingLink ? (
+                        <a
+                          href={meetup.meetingLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-[11px] text-tp-accent underline pl-6 truncate"
+                        >
+                          Join meeting
+                        </a>
+                      ) : (
+                        <p className="text-[11px] text-tp-muted pl-6">
+                          {meetup.locationAddress}
+                        </p>
+                      )}
                       <div className="flex items-center gap-2 text-xs text-tp-accent pt-1">
                         <Clock className="w-3.5 h-3.5 shrink-0 text-tp-accent" />
                         <span className="font-semibold">
@@ -251,6 +271,18 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
 
                   {/* Actions */}
                   <div className="mt-4 pt-3 border-t border-[#B39051]/35 flex items-center gap-2">
+                    {(() => {
+                      const partner = matches.find((m) => m.id === meetup.matchId)?.partnerProfile;
+                      return partner ? (
+                        <button
+                          onClick={() => setChatPartner(partner)}
+                          aria-label={`Message ${meetup.partnerName}`}
+                          className="py-1.5 px-2.5 rounded-lg border border-[#B39051]/50 text-tp-accent text-xs hover:bg-tp-elevated transition"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                        </button>
+                      ) : null;
+                    })()}
                     {meetup.icsContent && (
                       <button
                         onClick={() =>
@@ -457,6 +489,26 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                 >
                   <Coffee className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />Schedule
                 </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setChatPartner(match.partnerProfile)}
+                    className="flex-1 min-h-[40px] px-3 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition whitespace-nowrap shadow-md"
+                  >
+                    <MessageCircle className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />Message
+                  </button>
+                  {Repository.hasConversation(match.id, currentUser.id) ? (
+                    <button
+                      onClick={() => handleScheduleFromMatch(match)}
+                      className="flex-1 min-h-[40px] px-3 rounded-xl border border-[#B39051]/60 text-tp-ink font-semibold text-xs hover:bg-tp-elevated transition whitespace-nowrap"
+                    >
+                      <CalendarDays className="inline w-3.5 h-3.5 mr-1 -mt-0.5 text-tp-accent" />Schedule
+                    </button>
+                  ) : (
+                    <span className="flex-1 text-[11px] text-tp-subtle leading-tight">
+                      Chat first to plan a meetup
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -464,6 +516,17 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
       )}
 
       </div>
+
+      {/* Chat Drawer */}
+      <ChatDrawer
+        isOpen={!!chatPartner}
+        onClose={() => {
+          setChatPartner(null);
+          loadData();
+        }}
+        partner={chatPartner}
+        onScheduled={() => loadData()}
+      />
 
       {/* Scheduler Drawer */}
       <SchedulerDrawer

@@ -25,7 +25,7 @@ describe('Responsive shells & live demo view switcher', () => {
     setViewportWidth(390);
     renderApp();
     expect(screen.getByTestId('phone-shell')).toBeDefined();
-    expect(screen.getByTestId('bottom-nav-dock').textContent).toMatch(/Map.*Swipe.*Plans/);
+    expect(screen.getByTestId('bottom-nav-dock').textContent).toMatch(/Map.*Connect 1-on-1.*Plans/);
     expect(screen.queryByTestId('view-mode-toggle')).toBeNull(); // presenters only switch on desktop
   });
 
@@ -33,7 +33,7 @@ describe('Responsive shells & live demo view switcher', () => {
     setViewportWidth(1440);
     renderApp();
     expect(screen.getByTestId('web-shell')).toBeDefined();
-    expect(screen.getByTestId('nav-tab-swipe').textContent).toContain('1-on-1 Swipe');
+    expect(screen.getByTestId('nav-tab-swipe').textContent).toContain('Connect 1-on-1');
     expect(screen.getByTestId('view-mode-web').getAttribute('aria-checked')).toBe('true');
   });
 

@@ -1,9 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { X, Coffee, CalendarPlus, Check } from 'lucide-react';
-import { UserProfile, CalendarMeetup, CoffeeSpotSuggestion } from '../../shared/contracts';
+import { X, Coffee, CalendarPlus, Check, MapPin, Video } from 'lucide-react';
+import {
+  UserProfile,
+  CalendarMeetup,
+  CoffeeSpotSuggestion,
+  MeetingFormat,
+  OnlinePlatform,
+} from '../../shared/contracts';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
-import { Repository, MIDPOINT_COFFEE_SPOTS } from '../../shared/data/repository';
+import { Repository, MIDPOINT_COFFEE_SPOTS, sanitizeMeetingLink } from '../../shared/data/repository';
 import { generateIcsFile, generateGoogleCalendarUrl, downloadIcsFile } from './calendarUtils';
+import { intentLabels } from '../../shared/intents';
+
+export const ONLINE_PLATFORMS: OnlinePlatform[] = ['Google Meet', 'Zoom', 'Microsoft Teams', 'Phone Call'];
 
 interface SchedulerDrawerProps {
   isOpen: boolean;
@@ -12,7 +21,17 @@ interface SchedulerDrawerProps {
   matchId?: string;
   onScheduled?: (meetup: CalendarMeetup) => void;
   initialSpot?: CoffeeSpotSuggestion;
+  initialFormat?: MeetingFormat;
 }
+
+const formatWhen = (iso: string) =>
+  new Date(iso).toLocaleString([], {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 
 export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
   isOpen,
@@ -21,7 +40,14 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
   matchId,
   onScheduled,
   initialSpot,
+  initialFormat = 'in-person',
 }) => {
+  const [format, setFormat] = useState<MeetingFormat>(initialFormat);
+  const [platform, setPlatform] = useState<OnlinePlatform>('Google Meet');
+  const [meetingLinkInput, setMeetingLinkInput] = useState<string>('');
+  const [useCustomSpot, setUseCustomSpot] = useState<boolean>(false);
+  const [customName, setCustomName] = useState<string>('');
+  const [customAddress, setCustomAddress] = useState<string>('');
   const [selectedSpot, setSelectedSpot] = useState<CoffeeSpotSuggestion>(
     initialSpot || MIDPOINT_COFFEE_SPOTS[0]
   );
@@ -85,13 +111,18 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
     if (isOpen) {
       setIsSuccess(false);
       setScheduledMeetup(null);
+      setFormat(initialFormat);
+      setMeetingLinkInput('');
+      setUseCustomSpot(false);
+      setCustomName('');
+      setCustomAddress('');
       if (initialSpot) {
         setSelectedSpot(initialSpot);
       } else {
         setSelectedSpot(MIDPOINT_COFFEE_SPOTS[0]);
       }
     }
-  }, [isOpen, initialSpot]);
+  }, [isOpen, initialSpot, initialFormat]);
 
   if (!isOpen || !partner) return null;
 
@@ -100,15 +131,39 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
     ? new Date(customDateTime).toISOString()
     : selectedTimeSlot || quickTimeSlots[0].date;
 
+  const isOnline = format === 'online';
+  const isPhone = platform === 'Phone Call';
+  const meetingLink = isOnline && !isPhone ? sanitizeMeetingLink(meetingLinkInput) : undefined;
+  const hasInvalidLink = isOnline && !isPhone && meetingLinkInput.trim() !== '' && !meetingLink;
+
+  const isCustomSpot = !isOnline && useCustomSpot;
+  const missingCustomAddress = isCustomSpot && customAddress.trim() === '';
+  const cannotConfirm = hasInvalidLink || missingCustomAddress;
+
+  const locationName = isOnline
+    ? platform
+    : isCustomSpot
+      ? customName.trim() || customAddress.trim()
+      : selectedSpot.name;
+  const locationAddress = isOnline
+    ? meetingLink ?? (isPhone ? 'Swap numbers in chat' : 'Link to be shared in chat')
+    : isCustomSpot
+      ? customAddress.trim()
+      : selectedSpot.address;
+
   const handleConfirmSchedule = () => {
-    const meetupTitle = `ThirdPlace Coffee: ${currentUser.name} & ${partner.name}`;
-    const meetupDescription = `Georgia Tech 1-on-1 Coffee Meetup.\nShared Hobbies: ${partner.hobbies.join(', ')}\nIntent: ${partner.intent}`;
+    if (cannotConfirm) return;
+    const kind = isOnline ? (isPhone ? 'Call' : 'Video Chat') : isCustomSpot ? 'Meetup' : 'Coffee';
+    const meetupTitle = `ThirdPlace ${kind}: ${currentUser.name} & ${partner.name}`;
+    const meetupDescription = `Georgia Tech 1-on-1 ${isOnline ? `${platform} meetup` : isCustomSpot ? 'In-Person Meetup' : 'Coffee Meetup'}.${
+      meetingLink ? `\nJoin: ${meetingLink}` : ''
+    }\nShared Hobbies: ${partner.hobbies.join(', ')}\nLooking for: ${intentLabels(partner.intents)}`;
 
     const icsContent = generateIcsFile({
       title: meetupTitle,
       description: meetupDescription,
-      locationName: selectedSpot.name,
-      locationAddress: selectedSpot.address,
+      locationName,
+      locationAddress,
       startTime: effectiveMeetupTime,
       durationMinutes: selectedDuration,
       partnerName: partner.name,
@@ -119,23 +174,30 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
     const googleCalUrl = generateGoogleCalendarUrl({
       title: meetupTitle,
       description: meetupDescription,
-      locationName: selectedSpot.name,
-      locationAddress: selectedSpot.address,
+      locationName,
+      locationAddress,
       startTime: effectiveMeetupTime,
       durationMinutes: selectedDuration,
       partnerName: partner.name,
     });
 
+    const existingMatch =
+      Repository.findMatchWith(currentUser.id, partner.id) ||
+      (matchId ? Repository.getMatches().find((m) => m.id === matchId) : undefined);
+
     const newMeetup: CalendarMeetup = {
       id: `meetup_${Date.now()}`,
-      matchId: matchId || `match_${currentUser.id}_${partner.id}`,
+      matchId: existingMatch?.id || matchId || `match_${currentUser.id}_${partner.id}`,
       partnerId: partner.id,
       partnerName: partner.name,
       partnerRole: partner.role,
       partnerAvatar: partner.avatarUrl,
       partnerMajorOrCompany: partner.companyOrLab || partner.major,
-      locationName: selectedSpot.name,
-      locationAddress: selectedSpot.address,
+      format,
+      onlinePlatform: isOnline ? platform : undefined,
+      meetingLink,
+      locationName,
+      locationAddress,
       scheduledTime: effectiveMeetupTime,
       durationMinutes: selectedDuration,
       icsContent,
@@ -153,6 +215,23 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
       (matchId ? Repository.getMatches().find((m) => m.id === matchId) : undefined);
     if (existingMatch) {
       Repository.saveMatch({ ...existingMatch, status: 'scheduled' });
+    // Mark the match scheduled and leave a record of the plan in the chat thread
+    if (existingMatch) {
+      Repository.saveMatch({ ...existingMatch, status: 'scheduled' });
+      const where = isOnline
+        ? isPhone
+          ? 'a phone call'
+          : `a video call on ${platform}`
+        : isCustomSpot
+          ? `a meetup at ${locationName === locationAddress ? locationAddress : `${locationName} (${locationAddress})`}`
+          : `coffee at ${selectedSpot.name}`;
+      Repository.sendMessage(
+        existingMatch.id,
+        currentUser,
+        `Scheduled ${where} for ${formatWhen(effectiveMeetupTime)} (${selectedDuration} min).${
+          meetingLink ? ` Join here: ${meetingLink}` : ''
+        }`
+      );
     }
 
     setScheduledMeetup(newMeetup);
@@ -223,7 +302,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
             /* Success State */
             <div className="text-center py-4 space-y-4 animate-in zoom-in-95">
               <div className="w-14 h-14 mx-auto rounded-full bg-[#B39051]/20 border-2 border-[#B39051] flex items-center justify-center text-tp-accent">
-                <Coffee className="w-6 h-6" />
+                {scheduledMeetup.format === 'online' ? <Video className="w-6 h-6" /> : <Coffee className="w-6 h-6" />}
               </div>
               <div>
                 <h4 className="text-lg font-bold text-tp-ink">Meetup Confirmed!</h4>
@@ -233,24 +312,29 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
               </div>
 
               <div className="bg-tp-elevated p-4 rounded-xl border border-[#B39051]/35 text-left space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-tp-muted">Spot</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-tp-muted">{scheduledMeetup.format === 'online' ? 'Online' : 'Spot'}</span>
                   <span className="text-xs font-semibold text-tp-ink">{scheduledMeetup.locationName}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-tp-muted">Address</span>
-                  <span className="text-xs text-tp-muted">{scheduledMeetup.locationAddress}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-tp-muted">{scheduledMeetup.format === 'online' ? 'Link' : 'Address'}</span>
+                  {scheduledMeetup.meetingLink ? (
+                    <a
+                      href={scheduledMeetup.meetingLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-tp-accent underline truncate"
+                    >
+                      {scheduledMeetup.meetingLink}
+                    </a>
+                  ) : (
+                    <span className="text-xs text-tp-muted">{scheduledMeetup.locationAddress}</span>
+                  )}
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-xs text-tp-muted">When</span>
                   <span className="text-xs font-semibold text-tp-accent">
-                    {new Date(scheduledMeetup.scheduledTime).toLocaleString([], {
-                      weekday: 'short',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                    })} ({scheduledMeetup.durationMinutes} min)
+                    {formatWhen(scheduledMeetup.scheduledTime)} ({scheduledMeetup.durationMinutes} min)
                   </span>
                 </div>
               </div>
@@ -283,28 +367,118 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
               </button>
             </div>
           ) : (
-            /* 2-Tap Scheduler Form */
+            /* Scheduler Form */
             <>
-              {/* Tap 1: Select Midpoint Coffee Spot */}
+              {/* Step 1: In person or online */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-tp-accent flex items-center gap-1.5 mb-2">
+                  <span className="w-5 h-5 rounded-full bg-[#B39051] text-[#051E39] inline-flex items-center justify-center text-[11px] font-extrabold">
+                    1
+                  </span>
+                  <span>How do you want to meet?</span>
+                </label>
+                <div role="radiogroup" aria-label="Meeting format" className="grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      { value: 'in-person', label: 'In person', Icon: MapPin },
+                      { value: 'online', label: 'Online', Icon: Video },
+                    ] as const
+                  ).map(({ value, label, Icon }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={format === value}
+                      data-testid={`format-${value}`}
+                      onClick={() => setFormat(value)}
+                      className={`py-2.5 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition ${
+                        format === value
+                          ? 'bg-tp-elevated border-[#B39051] text-tp-accent ring-1 ring-[#B39051]'
+                          : 'bg-tp-canvas/60 border-[#B39051]/35 text-tp-muted hover:border-[#B39051]/50'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {isOnline ? (
+              /* Step 2 (online): platform + optional link */
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider text-tp-accent flex items-center gap-1.5 mb-2">
+                  <span className="w-5 h-5 rounded-full bg-[#B39051] text-[#051E39] inline-flex items-center justify-center text-[11px] font-extrabold">
+                    2
+                  </span>
+                  <span>Choose Platform</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {ONLINE_PLATFORMS.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      aria-pressed={platform === p}
+                      onClick={() => setPlatform(p)}
+                      className={`py-2 px-3 rounded-xl border text-xs font-semibold text-left transition flex items-center justify-between ${
+                        platform === p
+                          ? 'bg-tp-elevated border-[#B39051] text-tp-accent shadow-sm'
+                          : 'bg-tp-canvas/60 border-[#B39051]/35 text-tp-muted hover:border-[#B39051]/50'
+                      }`}
+                    >
+                      {p}
+                      {platform === p && <Check className="w-3.5 h-3.5" />}
+                    </button>
+                  ))}
+                </div>
+                {!isPhone && (
+                  <div className="mt-2.5">
+                    <label htmlFor="meeting-link" className="text-[11px] text-tp-subtle block mb-1">
+                      Meeting link (optional, or share it in chat later):
+                    </label>
+                    <input
+                      id="meeting-link"
+                      type="url"
+                      inputMode="url"
+                      placeholder={`Paste your ${platform} link`}
+                      value={meetingLinkInput}
+                      onChange={(e) => setMeetingLinkInput(e.target.value)}
+                      aria-invalid={hasInvalidLink}
+                      className={`w-full bg-tp-canvas border rounded-xl px-3 py-1.5 text-xs text-tp-ink focus:outline-none ${
+                        hasInvalidLink ? 'border-red-400' : 'border-[#B39051]/35 focus:border-[#B39051]'
+                      }`}
+                    />
+                    {hasInvalidLink && (
+                      <p className="text-[11px] text-red-400 mt-1">Enter a valid http(s) link.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+              ) : (
+              /* Step 2 (in person): Select Midpoint Coffee Spot */
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-tp-accent flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-[#B39051] text-[#051E39] inline-flex items-center justify-center text-[11px] font-extrabold">
-                      1
+                      2
                     </span>
-                    <span>Choose Midpoint Spot</span>
+                    <span>Recommended Spots</span>
                   </label>
                   <span className="text-[11px] text-tp-subtle">GT Campus & Midtown</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {MIDPOINT_COFFEE_SPOTS.map((spot) => {
-                    const isSelected = selectedSpot.name === spot.name;
+                    const isSelected = !useCustomSpot && selectedSpot.name === spot.name;
                     return (
                       <button
                         key={spot.name}
                         type="button"
-                        onClick={() => setSelectedSpot(spot)}
+                        aria-pressed={isSelected}
+                        onClick={() => {
+                          setSelectedSpot(spot);
+                          setUseCustomSpot(false);
+                        }}
                         className={`p-3 rounded-xl text-left border transition relative flex flex-col justify-between ${
                           isSelected
                             ? 'bg-tp-elevated border-[#B39051] shadow-md ring-1 ring-[#B39051]'
@@ -330,15 +504,74 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                       </button>
                     );
                   })}
-                </div>
-              </div>
 
-              {/* Tap 2: Select Time Slot & Duration */}
+                  {/* Anywhere else the two of them agreed on in chat */}
+                  <button
+                    type="button"
+                    data-testid="spot-custom"
+                    aria-pressed={useCustomSpot}
+                    onClick={() => setUseCustomSpot(true)}
+                    className={`p-3 rounded-xl text-left border border-dashed transition flex flex-col justify-between sm:col-span-2 ${
+                      useCustomSpot
+                        ? 'bg-tp-elevated border-[#B39051] shadow-md ring-1 ring-[#B39051]'
+                        : 'bg-tp-canvas/60 border-[#B39051]/50 hover:border-[#B39051]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <h5 className="font-semibold text-tp-ink text-xs leading-tight flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-tp-accent" />
+                        Somewhere else
+                      </h5>
+                      {useCustomSpot && <Check className="w-3.5 h-3.5 text-tp-accent" />}
+                    </div>
+                    <p className="text-[10px] text-tp-muted mt-1">Enter your own place and address</p>
+                  </button>
+                </div>
+
+                {useCustomSpot && (
+                  <div className="mt-2.5 space-y-2">
+                    <div>
+                      <label htmlFor="custom-place-name" className="text-[11px] text-tp-subtle block mb-1">
+                        Place name (optional)
+                      </label>
+                      <input
+                        id="custom-place-name"
+                        placeholder="e.g. Piedmont Park, Ponce City Market"
+                        value={customName}
+                        maxLength={120}
+                        onChange={(e) => setCustomName(e.target.value)}
+                        className="w-full bg-tp-canvas border border-[#B39051]/35 rounded-xl px-3 py-1.5 text-xs text-tp-ink focus:outline-none focus:border-[#B39051]"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="custom-place-address" className="text-[11px] text-tp-subtle block mb-1">
+                        Address
+                      </label>
+                      <input
+                        id="custom-place-address"
+                        placeholder="Street, city"
+                        autoComplete="street-address"
+                        value={customAddress}
+                        maxLength={200}
+                        onChange={(e) => setCustomAddress(e.target.value)}
+                        aria-invalid={missingCustomAddress}
+                        className="w-full bg-tp-canvas border border-[#B39051]/35 rounded-xl px-3 py-1.5 text-xs text-tp-ink focus:outline-none focus:border-[#B39051]"
+                      />
+                      {missingCustomAddress && (
+                        <p className="text-[11px] text-tp-subtle mt-1">Add an address to confirm.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              )}
+
+              {/* Step 3: Select Time Slot & Duration */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-tp-accent flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-[#B39051] text-[#051E39] inline-flex items-center justify-center text-[11px] font-extrabold">
-                      2
+                      3
                     </span>
                     <span>Select Time Slot</span>
                   </label>
@@ -406,9 +639,10 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                 <button
                   type="button"
                   onClick={handleConfirmSchedule}
-                  className="w-full py-3 px-4 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-sm tracking-wide hover:bg-[#8F713D] active:bg-[#8F713D] transition shadow-lg flex items-center justify-center gap-2"
+                  disabled={cannotConfirm}
+                  className="w-full py-3 px-4 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-sm tracking-wide hover:bg-[#8F713D] active:bg-[#8F713D] transition shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Coffee className="w-4 h-4" />
+                  {isOnline ? <Video className="w-4 h-4" /> : <Coffee className="w-4 h-4" />}
                   <span>Confirm & Download .ics Meetup</span>
                 </button>
                 <p className="text-[11px] text-center text-tp-subtle">
