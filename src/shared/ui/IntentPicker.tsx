@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Check, Sparkles, Users } from 'lucide-react';
+import { Check, Sparkles, Users, X } from 'lucide-react';
 import { MeetupIntent, UserProfile } from '../contracts';
 import {
   INTENT_CATALOG,
@@ -121,17 +121,19 @@ export const IntentPicker: React.FC<IntentPickerProps> = ({ value, onChange, com
             Nothing picked: you're open to anything.
           </p>
         ) : (
-          <p className="text-tp-subtle">
-            {value.length} picked ·{' '}
+          <div className="flex items-center gap-2">
+            <span className="text-tp-subtle">{value.length} picked</span>
             <button
               type="button"
               data-testid="intent-clear"
               onClick={() => onChange([])}
-              className="underline text-tp-muted hover:text-tp-ink"
+              title="Clear all picks (open to anything)"
+              className="inline-flex items-center gap-1 min-h-[32px] px-3 rounded-lg border border-[#B39051] text-tp-accent font-semibold hover:bg-[#B39051] hover:text-[#051E39] active:bg-[#8F713D] transition"
             >
-              Clear (open to anything)
+              <X className="w-3.5 h-3.5" />
+              Clear all
             </button>
-          </p>
+          </div>
         )}
         {viewer && (
           <p data-testid="intent-match-count" className="text-tp-accent font-semibold flex items-center gap-1 shrink-0">

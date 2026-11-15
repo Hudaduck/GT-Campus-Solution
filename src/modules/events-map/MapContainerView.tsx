@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { getCategoryIcon } from '../../shared/ui/categoryIcons';
 import { iconToSvgMarkup } from '../../shared/ui/iconMarkup';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { ScoredEventItem } from './types';
@@ -14,6 +14,7 @@ interface MapContainerViewProps {
   currentUser: UserProfile;
   center: [number, number];
   zoom: number;
+  radiusMiles?: number | null; // draws the location-preference radius and fits the view to it
   onTileError: () => void;
   onSelectEvent: (event: ScoredEventItem) => void;
 }
@@ -58,18 +59,47 @@ export function createGTMarkerIcon(event: ScoredEventItem): L.DivIcon {
   });
 }
 
-// Controller component to smoothly re-center map to GT campus
-const MapCenterController: React.FC<{ center: [number, number]; zoom: number }> = ({ center, zoom }) => {
+const METERS_PER_MILE = 1609.34;
+
+// Keeps the view on the location preference: fits the radius circle (or centers for "Anywhere")
+// whenever the area or radius changes, plus a button to snap back to it.
+const MapViewController: React.FC<{ center: [number, number]; zoom: number; radiusMiles: number | null }> = ({
+  center,
+  zoom,
+  radiusMiles,
+}) => {
   const map = useMap();
+  const [lat, lng] = center;
+
+  const fitToPreference = useCallback(
+    (animate: boolean) => {
+      try {
+        const size = map.getSize();
+        if (radiusMiles !== null && size.x > 0 && size.y > 0) {
+          const bounds = L.latLng(lat, lng).toBounds(radiusMiles * METERS_PER_MILE * 2);
+          // Fractional zoom (zoomSnap below) lets the circle fill the view instead of rounding out a level
+          map.fitBounds(bounds, { padding: [6, 6], animate });
+        } else {
+          map.setView([lat, lng], zoom, { animate });
+        }
+      } catch {
+        // Headless / zero-size containers can't compute bounds; the initial center still applies
+      }
+    },
+    [map, lat, lng, zoom, radiusMiles]
+  );
+
+  useEffect(() => fitToPreference(false), [fitToPreference]);
+
   return (
     <div className="leaflet-top leaflet-right" style={{ marginTop: '70px', marginRight: '10px' }}>
       <div className="leaflet-bar leaflet-control">
         <button
           type="button"
-          onClick={() => map.flyTo(center, zoom, { duration: 0.8 })}
+          onClick={() => fitToPreference(true)}
           className="w-8 h-8 bg-[#051E39] tp-on-navy text-tp-accent flex items-center justify-center hover:bg-tp-elevated transition rounded shadow border border-[#B39051]/50"
-          title="Recenter on Georgia Tech"
-          aria-label="Recenter on Georgia Tech"
+          title="Recenter on your area"
+          aria-label="Recenter on your area"
         >
           <Navigation className="w-4 h-4" />
         </button>
@@ -84,6 +114,7 @@ export const MapContainerView: React.FC<MapContainerViewProps> = ({
   currentUser,
   center,
   zoom,
+  radiusMiles = null,
   onTileError,
   onSelectEvent,
 }) => {
@@ -107,6 +138,9 @@ export const MapContainerView: React.FC<MapContainerViewProps> = ({
         zoom={zoom}
         style={{ height: '100%', width: '100%', background: '#051E39' }}
         scrollWheelZoom={true}
+        zoomSnap={0.1}
+        zoomDelta={0.5}
+        wheelPxPerZoomLevel={120}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -119,7 +153,23 @@ export const MapContainerView: React.FC<MapContainerViewProps> = ({
           }}
         />
 
-        <MapCenterController center={center} zoom={zoom} />
+        <MapViewController center={center} zoom={zoom} radiusMiles={radiusMiles} />
+
+        {/* Location preference: your area + how far you'll go */}
+        {radiusMiles !== null && (
+          <Circle
+            center={center}
+            radius={radiusMiles * METERS_PER_MILE}
+            interactive={false}
+            pathOptions={{ color: '#B39051', weight: 2, dashArray: '6 6', fillColor: '#B39051', fillOpacity: 0.06 }}
+          />
+        )}
+        <CircleMarker
+          center={center}
+          radius={6}
+          interactive={false}
+          pathOptions={{ color: '#051E39', weight: 2, fillColor: '#B39051', fillOpacity: 1 }}
+        />
 
         {events.map((event) => {
           const icon = eventIcons.get(event.id);

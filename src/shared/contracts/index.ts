@@ -39,6 +39,17 @@ export interface UserProfile {
   linkedinUrl?: string;
   vouchesCount: number;
   vouchedBy?: string[];
+  locationPreference?: LocationPreference; // missing = DEFAULT_LOCATION_PREFERENCE (GT campus, 5 mi)
+}
+
+// Where someone wants to meet + how far they'll go (radiusMiles null = Anywhere).
+// Filters the Map's events and the Connect 1-on-1 deck. See src/shared/location.ts.
+export interface LocationPreference {
+  areaId: string; // a LOCATION_AREAS id, or 'current' for the browser's location
+  label: string;
+  lat: number;
+  lng: number;
+  radiusMiles: number | null;
 }
 
 export type CareerBadgeKind = 'works-at' | 'ex-company' | 'targeting' | 'shared-target';

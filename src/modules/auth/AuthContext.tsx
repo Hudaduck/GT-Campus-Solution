@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useBrand } from '../../shared/config/brandConfig';
 import { UserProfile, UserRole } from '../../shared/contracts';
-import { Repository, DEMO_STUDENT_USER, INITIAL_CURRENT_USER } from '../../shared/data/repository';
+import { Repository, DEMO_STUDENT_USER, INITIAL_CURRENT_USER, USER_CHANGED_EVENT } from '../../shared/data/repository';
 
 export interface AuthContextType {
   user: UserProfile;
@@ -46,8 +46,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(Repository.getCurrentUser());
       }
     };
+    // Same-document changes made outside this context (e.g. the location control on the Map)
+    const handleUserChanged = () => setUser(Repository.getCurrentUser());
     window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    window.addEventListener(USER_CHANGED_EVENT, handleUserChanged);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener(USER_CHANGED_EVENT, handleUserChanged);
+    };
   }, []);
 
   const updateProfile = useCallback((updates: Partial<UserProfile>) => {

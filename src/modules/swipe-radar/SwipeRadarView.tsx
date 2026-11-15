@@ -31,6 +31,17 @@ import {
   Zap,
 } from 'lucide-react';
 import { LayoutMode } from '../../shared/ui/layout';
+import { LocationPreferenceChip } from '../../shared/ui/LocationPreference';
+import { LocationPreference } from '../../shared/contracts';
+import {
+  RADIUS_OPTIONS,
+  distanceFromPreference,
+  formatDistance,
+  getLocationPreference,
+  isWithinRadius,
+  profileLocation,
+  radiusLabel,
+} from '../../shared/location';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { ChatDrawer } from '../scheduler';
 import { MatchBreakdownCard } from './MatchBreakdownCard';
@@ -97,8 +108,16 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
   }, []);
 
   // Filter profiles and decorate them with viewer-relative hobby & career overlap
+  const locationPref = useMemo(() => getLocationPreference(currentUser), [currentUser]);
+  const changeLocation = (pref: LocationPreference) => {
+    setCurrentUser(Repository.updateCurrentUser({ locationPreference: pref }));
+    setCurrentIndex(0);
+  };
+  const nextWiderRadius = RADIUS_OPTIONS[RADIUS_OPTIONS.indexOf(locationPref.radiusMiles) + 1];
+
   const filteredProfiles: SwipeCandidate[] = useMemo(() => {
     const candidates = profiles
+      .filter((p) => isWithinRadius(locationPref, profileLocation(p)))
       .filter((p) => {
         const matchesIntent =
           intentFilter === 'all' ||
@@ -111,7 +130,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
     return intentFilter === 'for-you'
       ? candidates
       : [...candidates].sort((a, b) => Number(isIntentCompatible(currentUser, b)) - Number(isIntentCompatible(currentUser, a)));
-  }, [profiles, intentFilter, roleFilter, currentUser]);
+  }, [profiles, intentFilter, roleFilter, currentUser, locationPref]);
 
   // Current candidate card
   const currentCandidate = filteredProfiles[currentIndex] || null;
@@ -208,6 +227,11 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
   }, [profiles, currentUser.id]);
 
   const isWeb = layout === 'web';
+
+  const candidateDistance = currentCandidate
+    ? distanceFromPreference(locationPref, profileLocation(currentCandidate))
+    : null;
+  const candidateDistanceText = candidateDistance !== null ? `${formatDistance(candidateDistance)} away` : null;
 
   // Card front stays scannable: top shared hobbies + top 1–2 career overlaps
   const cardHobbies = sharedHobbies.slice(0, 3);
@@ -307,6 +331,11 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
             </p>
           </div>
 
+          {/* Location preference: area + radius */}
+          <div className="shrink-0">
+            <LocationPreferenceChip value={locationPref} onChange={changeLocation} className="w-full" />
+          </div>
+
           {/* Filters: two compact dropdowns (who + role) */}
           <div className="shrink-0 grid grid-cols-[1fr_auto] gap-2">
             <label className={selectWrap(intentFilter !== 'all')}>
@@ -383,8 +412,10 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                       <div className="min-w-0 max-w-[75%] bg-[#051E39]/85 backdrop-blur-md border border-[#B39051]/50 text-tp-ink px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 truncate">
                         <MapPin className="w-3 h-3 text-tp-accent shrink-0" />
                         <span className="truncate">{currentCandidate.neighborhoodZone}</span>
-                        {currentCandidate.distanceText && (
-                          <span className="text-tp-accent font-bold shrink-0">· {currentCandidate.distanceText}</span>
+                        {candidateDistanceText && (
+                          <span data-testid="candidate-distance" className="text-tp-accent font-bold shrink-0">
+                            · {candidateDistanceText}
+                          </span>
                         )}
                       </div>
                       {currentCandidate.isOpenToMeet && (
@@ -521,12 +552,25 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                   <Users className="w-7 h-7" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-tp-ink">You're All Caught Up!</h3>
+                  <h3 className="text-lg font-bold text-tp-ink">
+                    {filteredProfiles.length === 0 ? 'No one here yet' : "You're All Caught Up!"}
+                  </h3>
                   <p className="text-xs text-tp-muted mt-1 max-w-xs mx-auto">
-                    You've reviewed all available Yellow Jackets in your radar for now.
+                    {filteredProfiles.length === 0
+                      ? `No Yellow Jackets match within ${radiusLabel(locationPref.radiusMiles)} of ${locationPref.label}.`
+                      : "You've reviewed all available Yellow Jackets in your radar for now."}
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 pt-2 max-w-xs mx-auto">
+                  {filteredProfiles.length === 0 && locationPref.radiusMiles !== null && (
+                    <button
+                      data-testid="widen-radius"
+                      onClick={() => changeLocation({ ...locationPref, radiusMiles: nextWiderRadius ?? null })}
+                      className="py-2.5 px-4 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition"
+                    >
+                      Widen to {radiusLabel(nextWiderRadius ?? null)}
+                    </button>
+                  )}
                   <button
                     onClick={() => setCurrentIndex(0)}
                     className="py-2.5 px-4 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition"
@@ -750,7 +794,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
             <p className="text-xs text-tp-muted flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-tp-accent" />
               {currentCandidate.neighborhoodZone}
-              {currentCandidate.distanceText ? ` · ${currentCandidate.distanceText}` : ''}
+              {candidateDistanceText ? ` · ${candidateDistanceText}` : ''}
             </p>
 
             <p className="text-sm text-tp-ink leading-relaxed">{currentCandidate.bio}</p>

@@ -3,6 +3,7 @@ import { Clock, MapPin, Users, Sparkles, Check, ChevronRight, AlertTriangle } fr
 import { ScoredEventItem } from './types';
 import { UserProfile } from '../../shared/contracts';
 import { Repository } from '../../shared/data/repository';
+import { formatDistance } from '../../shared/location';
 
 interface EventListViewProps {
   events: ScoredEventItem[];
@@ -139,6 +140,11 @@ export const EventListView: React.FC<EventListViewProps> = ({
                     <span className="truncate">
                       <strong>{event.locationName}</strong> • {event.neighborhoodZone}
                     </span>
+                    {event.distanceMiles !== undefined && (
+                      <span data-testid="event-distance" className="shrink-0 text-tp-accent font-semibold">
+                        · {formatDistance(event.distanceMiles)}
+                      </span>
+                    )}
                   </div>
 
                   {/* Description preview */}

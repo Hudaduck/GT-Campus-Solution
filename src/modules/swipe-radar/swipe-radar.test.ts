@@ -3,6 +3,7 @@ import { render, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { SwipeRadarView } from './SwipeRadarView';
 import { Repository, DEMO_STUDENT_USER } from '../../shared/data/repository';
+import { areaPreference } from '../../shared/location';
 
 describe('SwipeRadarView Component', () => {
   beforeEach(() => {
@@ -22,7 +23,8 @@ describe('SwipeRadarView Component', () => {
 
     // Fuzzy neighborhood badge
     expect(getByText('Midtown • Tech Square')).toBeDefined();
-    expect(getByText(/Within 0.4 mi/i)).toBeDefined();
+    // Distance is computed from the viewer's area (default: Georgia Tech Campus)
+    expect(getByTestId('candidate-distance').textContent).toContain('0.4 mi away');
 
     // Intent badges use catalog labels; both of Alex's intents complement Sarah's (mentor + co-founder)
     const intentBadges = [...getByTestId('candidate-intents').querySelectorAll('span')];
@@ -47,7 +49,8 @@ describe('SwipeRadarView Component', () => {
   });
 
   it('shows Career & Network Overlap badges ("Works at" / "Ex-" / "Targeting:") alongside shared hobbies', async () => {
-    Repository.setCurrentUser(DEMO_STUDENT_USER); // Student targeting Stripe, Anthropic, Google...
+    // Elena lives in SF, so look beyond the default 5 mi radius for this badge check
+    Repository.setCurrentUser({ ...DEMO_STUDENT_USER, locationPreference: { ...areaPreference('gt-campus', null) } });
     const { getByTitle, getAllByTestId, getByText, findByText } = render(
       React.createElement(SwipeRadarView, {})
     );
@@ -252,5 +255,38 @@ describe('SwipeRadarView Component', () => {
     const { getByText, queryByTestId } = render(React.createElement(SwipeRadarView, {}));
     expect(getByText('Alex Chen')).toBeDefined();
     expect(queryByTestId('candidate-intents')).toBeNull();
+  });
+
+  it('only shows people inside the location radius, and the chip changes it', () => {
+    // Default: Georgia Tech Campus, 5 mi. Elena (SF) and David (NYC) are out of range.
+    const { getByTestId, getByText, queryByText } = render(React.createElement(SwipeRadarView, {}));
+    expect(getByTestId('location-chip').textContent).toContain('Georgia Tech Campus');
+    fireEvent.change(getByTestId('intent-filter'), { target: { value: 'all' } });
+    const total = () => Number(getByText(/Profile 1 of/).textContent!.match(/of (\d+)/)![1]);
+    const nearbyCount = total();
+
+    // Switch the area to San Francisco: the SF alumni appear, Atlanta people drop out
+    fireEvent.click(getByTestId('location-chip'));
+    fireEvent.change(getByTestId('location-area'), { target: { value: 'sf' } });
+    fireEvent.click(getByTestId('location-done'));
+    expect(getByTestId('location-chip').textContent).toContain('San Francisco');
+    expect(queryByText('Alex Chen')).toBeNull();
+    expect(total()).toBeLessThan(nearbyCount);
+    expect(Repository.getCurrentUser().locationPreference?.areaId).toBe('sf');
+
+    // Anywhere: everyone
+    fireEvent.click(getByTestId('location-chip'));
+    fireEvent.click(getByTestId('radius-anywhere'));
+    fireEvent.click(getByTestId('location-done'));
+    expect(total()).toBeGreaterThan(nearbyCount);
+  });
+
+  it('offers to widen the radius when nobody is in range', () => {
+    Repository.setCurrentUser({ ...Repository.getCurrentUser(), locationPreference: areaPreference('decatur', 0.5) });
+    const { getByTestId, getByText } = render(React.createElement(SwipeRadarView, {}));
+    expect(getByText('No one here yet')).toBeDefined();
+    expect(getByTestId('widen-radius').textContent).toContain('1 mi');
+    fireEvent.click(getByTestId('widen-radius'));
+    expect(Repository.getCurrentUser().locationPreference?.radiusMiles).toBe(1);
   });
 });

@@ -1227,6 +1227,14 @@ export class Repository {
     }
   }
 
+  // Merge a change into the current user and the shared directory (for views without AuthContext)
+  static updateCurrentUser(updates: Partial<UserProfile>): UserProfile {
+    const updated = { ...this.getCurrentUser(), ...updates };
+    this.setCurrentUser(updated);
+    this.saveProfile(updated);
+    return updated;
+  }
+
   static getEvents(): EventItem[] {
     let events: EventItem[] = [];
     if (this.isSafeStorageAvailable()) {

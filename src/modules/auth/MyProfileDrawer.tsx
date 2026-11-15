@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Briefcase, Target, Tag, Check, Plus, Trash2, GraduationCap } from 'lucide-react';
+import { X, Briefcase, Target, Tag, Check, Plus, Trash2, GraduationCap, MapPin } from 'lucide-react';
 import { useAuth } from './AuthContext';
-import { WorkExperience, MeetupIntent } from '../../shared/contracts';
+import { WorkExperience, MeetupIntent, LocationPreference } from '../../shared/contracts';
+import { getLocationPreference } from '../../shared/location';
+import { LocationPreferenceEditor } from '../../shared/ui/LocationPreference';
 import { HOBBY_SUGGESTIONS, Repository } from '../../shared/data/repository';
 import { HobbyCombobox } from '../../shared/ui/HobbyCombobox';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
@@ -22,6 +24,7 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
   const [companyOrLab, setCompanyOrLab] = useState(user.companyOrLab || '');
   const [bio, setBio] = useState(user.bio || '');
   const [intents, setIntents] = useState<MeetupIntent[]>(user.intents ?? []);
+  const [locationPref, setLocationPref] = useState<LocationPreference>(() => getLocationPreference(user));
   const [hobbies, setHobbies] = useState<string[]>(user.hobbies || []);
 
   // Career fields
@@ -45,6 +48,7 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
       setCompanyOrLab(user.companyOrLab || '');
       setBio(user.bio || '');
       setIntents(user.intents ?? []);
+      setLocationPref(getLocationPreference(user));
       setHobbies(user.hobbies || []);
       setWorkHistory(user.workHistory || []);
       setTargetCompanies(user.targetCompanies || []);
@@ -111,6 +115,7 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
       companyOrLab: companyOrLab.trim() || undefined,
       bio: bio.trim() || user.bio,
       intents,
+      locationPreference: locationPref,
       hobbies,
       workHistory,
       targetCompanies,
@@ -409,6 +414,20 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* Location preference: where you want to meet + how far */}
+          <div data-testid="profile-location" className="space-y-3 pt-3 border-t border-tp-line">
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-tp-accent flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-tp-accent" />
+                <span>Location Preference</span>
+              </h3>
+              <p className="text-[11px] text-tp-muted mt-1">
+                Sets which events show on your map and who appears in Connect 1-on-1.
+              </p>
+            </div>
+            <LocationPreferenceEditor value={locationPref} onChange={setLocationPref} />
           </div>
 
           {/* Section 4: What you're looking for */}

@@ -59,4 +59,19 @@ describe('My Profile drawer (career profile editing)', () => {
     const inDirectory = Repository.getProfiles().find((p) => p.id === DEMO_STUDENT_USER.id);
     expect(inDirectory?.targetCompanies).toContain('Delta Air Lines');
   });
+
+  it('saves a location preference (area + radius) from My Profile', () => {
+    renderDrawer();
+    const section = screen.getByTestId('profile-location');
+    expect(section.textContent).toContain('Location Preference');
+    fireEvent.change(screen.getByTestId('location-area'), { target: { value: 'west-midtown' } });
+    fireEvent.click(screen.getByTestId('radius-2'));
+    fireEvent.click(screen.getByTestId('save-profile-button'));
+
+    expect(Repository.getCurrentUser().locationPreference).toMatchObject({
+      areaId: 'west-midtown',
+      label: 'West Midtown',
+      radiusMiles: 2,
+    });
+  });
 });
