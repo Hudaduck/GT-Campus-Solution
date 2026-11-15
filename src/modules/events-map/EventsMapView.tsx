@@ -9,6 +9,7 @@ import {
   Sparkles,
   CalendarCheck,
   X as CloseIcon,
+  Star,
 } from 'lucide-react';
 import { useBrand } from '../../shared/config/brandConfig';
 import { UserProfile, EventItem } from '../../shared/contracts';
@@ -104,7 +105,9 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
       };
     });
 
-    [...scored]
+    // Never recommend your own pop-ups; they're listed under "You're hosting" (and in My Plans)
+    scored
+      .filter((ev) => ev.hostId !== currentUser.id)
       .sort((a, b) => b.score - a.score)
       .filter((ev) => ev.score >= RECOMMENDED_SCORE_THRESHOLD)
       .slice(0, RECOMMENDED_MAX_COUNT)
@@ -183,8 +186,27 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
     setOnlyRecommended(false);
   };
 
-  const recommendedEvents = filteredEvents.filter((ev) => ev.isRecommended);
-  const otherEvents = filteredEvents.filter((ev) => !ev.isRecommended);
+  const hostedEvents = filteredEvents.filter((ev) => ev.hostId === currentUser.id);
+  const browseEvents = filteredEvents.filter((ev) => ev.hostId !== currentUser.id);
+  const recommendedEvents = browseEvents.filter((ev) => ev.isRecommended);
+  const otherEvents = browseEvents.filter((ev) => !ev.isRecommended);
+
+  // Your own pop-ups: listed on their own, never mixed into picks
+  const hostingSection = hostedEvents.length > 0 && (
+    <section data-testid="map-hosting">
+      <h3 className="text-sm font-black text-tp-ink mb-2 flex items-center gap-1.5">
+        <Star className="w-4 h-4 text-tp-accent" />
+        <span>You're hosting ({hostedEvents.length})</span>
+      </h3>
+      <EventListView
+        events={hostedEvents}
+        currentUser={currentUser}
+        viewMode="list"
+        onSelectEvent={handleSelectEvent}
+        onRsvpSuccess={handleRsvpSuccess}
+      />
+    </section>
+  );
 
   const recommendedSection = (
     <section data-testid="recommended-for-you">
@@ -480,6 +502,7 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
                   />
                 </div>
               )}
+              {hostingSection}
             </div>
           </div>
         ) : (
@@ -502,17 +525,21 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
             >
               View all {filteredEvents.length} events as list →
             </button>
+            {hostingSection}
           </div>
         )
       ) : (
-        <EventListView
-          events={filteredEvents}
-          currentUser={currentUser}
-          viewMode={viewMode}
-          hasTileError={hasTileError}
-          onSelectEvent={handleSelectEvent}
-          onRsvpSuccess={handleRsvpSuccess}
-        />
+        <div className="space-y-5">
+          <EventListView
+            events={browseEvents}
+            currentUser={currentUser}
+            viewMode={viewMode}
+            hasTileError={hasTileError}
+            onSelectEvent={handleSelectEvent}
+            onRsvpSuccess={handleRsvpSuccess}
+          />
+          {hostingSection}
+        </div>
       )}
 
       {/* Slide-Up Drawers */}

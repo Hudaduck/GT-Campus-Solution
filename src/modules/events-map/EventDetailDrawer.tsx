@@ -171,8 +171,8 @@ export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({
           </div>
         </div>
 
-        {/* Recommendation Affinity Banner if score > 0 */}
-        {event.score > 0 && (
+        {/* Recommendation Affinity Banner if score > 0 (not on your own pop-up) */}
+        {event.score > 0 && !isHost && (
           <div className="mb-4 p-3.5 rounded-2xl bg-[#051E39]/90 tp-on-navy border border-[#B39051]/40 shadow-sm space-y-2">
             <div className="flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-tp-accent flex-shrink-0" />

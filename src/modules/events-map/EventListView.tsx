@@ -98,7 +98,7 @@ export const EventListView: React.FC<EventListViewProps> = ({
                 )}
 
                 {/* Match Reasons Pills */}
-                {event.matchReasons && event.matchReasons.length > 0 && (
+                {event.hostId !== currentUser.id && event.matchReasons && event.matchReasons.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
                     {event.matchReasons.map((reason, idx) => (
                       <span
