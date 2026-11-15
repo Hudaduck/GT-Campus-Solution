@@ -92,7 +92,7 @@ describe('Scheduler Module - UI Components', () => {
     expect(getByText('Blue Bottle Coffee')).toBeDefined();
 
     // Click confirm button
-    const confirmButton = getByText(/Confirm & Download .ics Meetup/i);
+    const confirmButton = getByText(/Confirm & Add to Google Calendar/i);
     fireEvent.click(confirmButton);
 
     // Verify scheduled callback fired with partner and location info

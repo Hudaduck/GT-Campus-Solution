@@ -146,7 +146,7 @@ describe('SchedulerDrawer online meetings', () => {
     fireEvent.click(getByTestId('format-online'));
     fireEvent.click(getByText('Zoom'));
     fireEvent.change(getByLabelText(/Meeting link/), { target: { value: 'zoom.us/j/987654' } });
-    fireEvent.click(getByText(/Confirm & Download .ics Meetup/i));
+    fireEvent.click(getByText(/Confirm & Add to Google Calendar/i));
 
     expect(scheduled.format).toBe('online');
     expect(scheduled.onlinePlatform).toBe('Zoom');
@@ -176,7 +176,7 @@ describe('SchedulerDrawer online meetings', () => {
     expect(getByText('Dancing Goats Coffee Bar')).toBeDefined();
 
     fireEvent.click(getByTestId('spot-custom'));
-    const confirm = getByText(/Confirm & Download .ics Meetup/i).closest('button')!;
+    const confirm = getByText(/Confirm & Add to Google Calendar/i).closest('button')!;
     expect(confirm.disabled).toBe(true); // address required
 
     fireEvent.change(getByLabelText(/Place name/), { target: { value: 'Piedmont Park' } });
@@ -205,7 +205,7 @@ describe('SchedulerDrawer online meetings', () => {
     fireEvent.click(getByTestId('format-online'));
     fireEvent.change(getByLabelText(/Meeting link/), { target: { value: 'javascript:alert(1)' } });
     expect(getByText(/Enter a valid http\(s\) link/)).toBeDefined();
-    fireEvent.click(getByText(/Confirm & Download .ics Meetup/i));
+    fireEvent.click(getByText(/Confirm & Add to Google Calendar/i));
     expect(scheduled).toBeNull();
   });
 });

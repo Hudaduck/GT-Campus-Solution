@@ -85,7 +85,7 @@ describe('My Plans has no duplicates', () => {
     render(
       React.createElement(SchedulerDrawer, { isOpen: true, onClose: () => {}, partner: alex, matchId: 'm1' })
     );
-    fireEvent.click(screen.getByText(/Confirm & Download .ics Meetup/i));
+    fireEvent.click(screen.getByText(/Confirm & Add to Google Calendar/i));
     expect(Repository.findMatchWith(INITIAL_CURRENT_USER.id, alex.id)?.status).toBe('scheduled');
 
     render(React.createElement(MyPlansView, {}));

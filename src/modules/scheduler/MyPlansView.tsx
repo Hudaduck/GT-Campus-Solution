@@ -3,7 +3,7 @@ import { CalendarDays, Coffee, Zap, MapPin, Clock, Download, Ticket, Map as MapI
 import { EventItem, MatchItem, CalendarMeetup, UserProfile } from '../../shared/contracts';
 import { Repository, USER_CHANGED_EVENT, isSamePerson } from '../../shared/data/repository';
 import { LayoutMode } from '../../shared/ui/layout';
-import { generateIcsFile, generateGoogleCalendarUrl, downloadIcsFile } from './calendarUtils';
+import { generateIcsFile, generateGoogleCalendarUrl, downloadIcsFile, formatDuration } from './calendarUtils';
 import { SchedulerDrawer } from './SchedulerDrawer';
 import { getCategoryLabel } from '../../shared/ui/categoryIcons';
 import { ChatDrawer } from './ChatDrawer';
@@ -266,7 +266,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                             hour: 'numeric',
                             minute: '2-digit',
                           })}
-                          {' '}({meetup.durationMinutes} min)
+                          {' '}({formatDuration(meetup.durationMinutes)})
                         </span>
                       </div>
                     </div>

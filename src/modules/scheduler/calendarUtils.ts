@@ -99,8 +99,17 @@ export function generateGoogleCalendarUrl(details: CalendarEventDetails): string
     details: description,
     location: fullLocation,
   });
+  // Pre-adds the other person as a guest on the Google Calendar event
+  if (details.partnerEmail) params.set('add', details.partnerEmail);
 
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+/** "45 min", "1 hr", "1.5 hr", "3 hr" */
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.round((minutes / 60) * 10) / 10;
+  return `${hours} hr`;
 }
 
 /**

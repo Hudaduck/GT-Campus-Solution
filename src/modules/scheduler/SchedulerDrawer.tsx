@@ -9,7 +9,10 @@ import {
 } from '../../shared/contracts';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { Repository, MIDPOINT_COFFEE_SPOTS, sanitizeMeetingLink } from '../../shared/data/repository';
-import { generateIcsFile, generateGoogleCalendarUrl, downloadIcsFile } from './calendarUtils';
+import { generateIcsFile, generateGoogleCalendarUrl, downloadIcsFile, formatDuration } from './calendarUtils';
+
+// Meeting lengths (minutes): from a quick coffee to a long working session
+export const DURATION_OPTIONS = [30, 45, 60, 90, 120, 180];
 import { intentLabels } from '../../shared/intents';
 import { defaultStart, fromInputs, startError, toDateInput, toTimeInput } from '../../shared/schedule';
 
@@ -137,6 +140,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
       startTime: effectiveMeetupTime,
       durationMinutes: selectedDuration,
       partnerName: partner.name,
+      partnerEmail: partner.email,
     });
 
     const existingMatch =
@@ -181,7 +185,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
       Repository.sendMessage(
         existingMatch.id,
         currentUser,
-        `Scheduled ${where} for ${formatWhen(effectiveMeetupTime)} (${selectedDuration} min).${
+        `Scheduled ${where} for ${formatWhen(effectiveMeetupTime)} (${formatDuration(selectedDuration)}).${
           meetingLink ? ` Join here: ${meetingLink}` : ''
         }`
       );
@@ -191,11 +195,13 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
     setIsSuccess(true);
     onScheduled?.(newMeetup);
 
-    // Automatically trigger .ics download for seamless calendar sync
-    downloadIcsFile(
-      `ThirdPlace-${partner.name.replace(/\s+/g, '_')}-Meetup.ics`,
-      icsContent
-    );
+    // Open the pre-filled Google Calendar event (must run inside the click so it isn't popup-blocked).
+    // If the browser blocks it anyway, the success screen has an "Open in Google Calendar" button.
+    try {
+      window.open(googleCalUrl, '_blank', 'noopener,noreferrer');
+    } catch {
+      // ignore: environments without window.open
+    }
   };
 
   const handleDownloadIcs = () => {
@@ -260,7 +266,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
               <div>
                 <h4 className="text-lg font-bold text-tp-ink">Meetup Confirmed!</h4>
                 <p className="text-xs text-tp-muted mt-1">
-                  Calendar invite (.ics) has been generated and downloaded.
+                  Finish adding it in the Google Calendar tab that just opened.
                 </p>
               </div>
 
@@ -287,18 +293,19 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-xs text-tp-muted">When</span>
                   <span className="text-xs font-semibold text-tp-accent">
-                    {formatWhen(scheduledMeetup.scheduledTime)} ({scheduledMeetup.durationMinutes} min)
+                    {formatWhen(scheduledMeetup.scheduledTime)} ({formatDuration(scheduledMeetup.durationMinutes)})
                   </span>
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <div className="space-y-2 pt-2">
                 {scheduledMeetup.googleCalendarUrl && (
                   <a
                     href={scheduledMeetup.googleCalendarUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs flex items-center justify-center gap-2 hover:bg-[#8F713D] active:bg-[#8F713D] transition shadow-md"
+                    data-testid="open-google-calendar"
+                    className="w-full py-2.5 px-4 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs flex items-center justify-center gap-2 hover:bg-[#8F713D] active:bg-[#8F713D] transition shadow-md"
                   >
                     <CalendarPlus className="w-4 h-4" />
                     <span>Open in Google Calendar</span>
@@ -306,9 +313,9 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                 )}
                 <button
                   onClick={handleDownloadIcs}
-                  className="flex-1 py-2.5 px-4 rounded-xl border border-[#B39051] bg-[#051E39] tp-on-navy text-tp-ink font-semibold text-xs hover:bg-tp-elevated transition"
+                  className="w-full text-[11px] text-tp-subtle hover:text-tp-ink underline"
                 >
-                  Download .ics File
+                  Using another calendar? Download .ics
                 </button>
               </div>
 
@@ -528,23 +535,6 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                     </span>
                     <span>Pick a Time</span>
                   </label>
-                  {/* Duration Selector */}
-                  <div className="flex items-center gap-1 bg-tp-canvas p-0.5 rounded-lg border border-[#B39051]/35">
-                    {[30, 45, 60].map((dur) => (
-                      <button
-                        key={dur}
-                        type="button"
-                        onClick={() => setSelectedDuration(dur)}
-                        className={`px-2 py-0.5 text-[10px] rounded font-semibold transition ${
-                          selectedDuration === dur
-                            ? 'bg-[#B39051] text-[#051E39]'
-                            : 'text-tp-muted hover:text-tp-ink'
-                        }`}
-                      >
-                        {dur}m
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -568,11 +558,34 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                     className="w-full bg-tp-canvas border border-[#B39051]/35 rounded-xl px-3 py-2 text-xs text-tp-ink focus:outline-none focus:border-[#B39051] [color-scheme:dark]"
                   />
                 </div>
+                {/* How long */}
+                <div className="mt-3">
+                  <p id="meetup-duration-label" className="text-[11px] font-semibold text-tp-muted mb-1.5">How long?</p>
+                  <div role="group" aria-labelledby="meetup-duration-label" className="grid grid-cols-6 gap-1.5">
+                    {DURATION_OPTIONS.map((dur) => (
+                      <button
+                        key={dur}
+                        type="button"
+                        data-testid={`meetup-duration-${dur}`}
+                        aria-pressed={selectedDuration === dur}
+                        onClick={() => setSelectedDuration(dur)}
+                        className={`min-h-[34px] rounded-lg text-[11px] font-semibold border transition ${
+                          selectedDuration === dur
+                            ? 'bg-[#B39051] text-[#051E39] border-[#B39051]'
+                            : 'bg-tp-canvas/60 text-tp-muted border-[#B39051]/35 hover:text-tp-ink'
+                        }`}
+                      >
+                        {dur < 60 ? `${dur}m` : `${dur / 60}h`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {timeError ? (
                   <p role="alert" className="text-[11px] text-red-400 mt-1.5">{timeError}</p>
                 ) : (
                   <p data-testid="meetup-time-preview" className="text-[11px] text-tp-subtle mt-1.5">
-                    {formatWhen(effectiveMeetupTime)} · {selectedDuration} min
+                    {formatWhen(effectiveMeetupTime)} · {formatDuration(selectedDuration)}
                   </p>
                 )}
               </div>
@@ -586,10 +599,10 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                   className="w-full py-3 px-4 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-sm tracking-wide hover:bg-[#8F713D] active:bg-[#8F713D] transition shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isOnline ? <Video className="w-4 h-4" /> : <Coffee className="w-4 h-4" />}
-                  <span>Confirm & Download .ics Meetup</span>
+                  <span>Confirm & Add to Google Calendar</span>
                 </button>
                 <p className="text-[11px] text-center text-tp-subtle">
-                  Instantly creates an RFC 5545 .ics invite + Google Calendar integration.
+                  Opens a ready-to-save Google Calendar event with {partner.name.split(' ')[0]} as a guest.
                 </p>
               </div>
             </>

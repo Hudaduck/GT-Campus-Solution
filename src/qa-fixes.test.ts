@@ -17,6 +17,7 @@ import { MyPlansView } from './modules/scheduler/MyPlansView';
 import { SchedulerDrawer } from './modules/scheduler/SchedulerDrawer';
 import { AuthProvider, MyProfileDrawer } from './modules/auth';
 import { ResetDemoButton } from './shared/ui/ResetDemoButton';
+import { formatDuration } from './modules/scheduler/calendarUtils';
 
 const alex = INITIAL_PROFILES[0]; // user_alex_chen, the seed twin of DEMO_STUDENT_USER
 const marcus = INITIAL_PROFILES.find((p) => p.id === 'user_marcus_vance')!;
@@ -86,7 +87,7 @@ describe('QA: data belongs to the person who created it', () => {
     Repository.saveMatch(match('m1', INITIAL_CURRENT_USER.id, marcus));
     Repository.sendMessage('m1', INITIAL_CURRENT_USER, 'hi');
     render(React.createElement(SchedulerDrawer, { isOpen: true, onClose: () => {}, partner: marcus, matchId: 'm1' }));
-    fireEvent.click(screen.getByText(/Confirm & Download .ics Meetup/i));
+    fireEvent.click(screen.getByText(/Confirm & Add to Google Calendar/i));
     expect(Repository.getScheduledMeetups()[0].ownerId).toBe(INITIAL_CURRENT_USER.id);
   });
 });
@@ -144,7 +145,7 @@ describe('QA: sensible times', () => {
     render(React.createElement(SchedulerDrawer, { isOpen: true, onClose: () => {}, partner: alex }));
     fireEvent.change(screen.getByTestId('meetup-date-input'), { target: { value: '2020-01-01' } });
     expect(screen.getByRole('alert').textContent).toBe('Pick a start time in the future');
-    const confirm = screen.getByText(/Confirm & Download .ics Meetup/i).closest('button')!;
+    const confirm = screen.getByText(/Confirm & Add to Google Calendar/i).closest('button')!;
     expect(confirm.disabled).toBe(true);
   });
 });
@@ -266,5 +267,44 @@ describe('Demo readiness', () => {
     } finally {
       Object.defineProperty(window, 'location', { configurable: true, value: original });
     }
+  });
+});
+
+describe('Scheduling opens Google Calendar (no .ics download) and allows long meetings', () => {
+  beforeEach(() => Repository.resetAllData());
+  afterEach(() => vi.restoreAllMocks());
+
+  it('Confirm opens a pre-filled Google Calendar event with the partner as a guest, and downloads nothing', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const createUrl = vi.fn();
+    (URL as unknown as { createObjectURL: unknown }).createObjectURL = createUrl;
+
+    render(React.createElement(SchedulerDrawer, { isOpen: true, onClose: () => {}, partner: alex }));
+    fireEvent.click(screen.getByTestId('meetup-duration-90'));
+    fireEvent.click(screen.getByText(/Confirm & Add to Google Calendar/i));
+
+    expect(open).toHaveBeenCalledTimes(1);
+    const url = new URL(open.mock.calls[0][0] as string);
+    expect(url.hostname).toBe('calendar.google.com');
+    expect(url.searchParams.get('action')).toBe('TEMPLATE');
+    expect(url.searchParams.get('add')).toBe(alex.email);
+    const [start, end] = url.searchParams.get('dates')!.split('/');
+    const toMs = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +d.slice(9, 11), +d.slice(11, 13));
+    expect(toMs(end) - toMs(start)).toBe(90 * 60 * 1000);
+    expect(createUrl).not.toHaveBeenCalled(); // no .ics blob download
+
+    expect(screen.getByText('Meetup Confirmed!')).toBeDefined();
+    expect(screen.getByTestId('open-google-calendar').getAttribute('href')).toBe(open.mock.calls[0][0]);
+    expect(Repository.getScheduledMeetups()[0].durationMinutes).toBe(90);
+  });
+
+  it('offers meetings up to 3 hours and shows friendly lengths', () => {
+    render(React.createElement(SchedulerDrawer, { isOpen: true, onClose: () => {}, partner: alex }));
+    for (const m of [30, 45, 60, 90, 120, 180]) expect(screen.getByTestId(`meetup-duration-${m}`)).toBeDefined();
+    fireEvent.click(screen.getByTestId('meetup-duration-180'));
+    expect(screen.getByTestId('meetup-time-preview').textContent).toContain('3 hr');
+    expect(formatDuration(45)).toBe('45 min');
+    expect(formatDuration(90)).toBe('1.5 hr');
+    expect(formatDuration(120)).toBe('2 hr');
   });
 });

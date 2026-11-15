@@ -1,5 +1,23 @@
 import { test, expect } from '@playwright/test';
 
+
+// Catch the Google Calendar tab the app opens: answer it locally (no real Google / sign-in redirect)
+// and hand back the exact pre-filled URL the app used.
+async function captureGoogleCalendar(page: import('@playwright/test').Page, click: () => Promise<void>): Promise<URL> {
+  let captured = '';
+  await page.context().route('https://calendar.google.com/**', async (route) => {
+    captured = route.request().url();
+    await route.fulfill({ status: 200, contentType: 'text/html', body: '<title>Google Calendar (stub)</title>' });
+  });
+  const tab = page.context().waitForEvent('page');
+  await click();
+  const gcal = await tab;
+  await expect.poll(() => captured).not.toBe('');
+  await gcal.close();
+  await page.context().unroute('https://calendar.google.com/**');
+  return new URL(captured);
+}
+
 test.describe('Suite 3: E2E Core User Flows', () => {
   let consoleErrors: string[] = [];
 
@@ -134,9 +152,13 @@ test.describe('Suite 3: E2E Core User Flows', () => {
     await expect(page.locator('[data-testid="format-online"]')).toHaveAttribute('aria-checked', 'true');
     await page.locator('button', { hasText: 'Zoom' }).click();
     await page.getByLabel(/Meeting link/).fill('zoom.us/j/123456789');
-    const download = page.waitForEvent('download');
-    await page.locator('button:has-text("Confirm & Download .ics Meetup")').click();
-    expect((await download).suggestedFilename()).toMatch(/\.ics$/);
+    // Confirm opens a pre-filled Google Calendar event in a new tab (no .ics download)
+    const gcalUrl = await captureGoogleCalendar(page, () =>
+      page.locator('button:has-text("Confirm & Add to Google Calendar")').click()
+    );
+    expect(gcalUrl.hostname).toBe('calendar.google.com');
+    expect(gcalUrl.searchParams.get('action')).toBe('TEMPLATE');
+    expect(gcalUrl.searchParams.get('details')).toContain('https://zoom.us/j/123456789');
     await expect(page.locator('text=Meetup Confirmed!')).toBeVisible();
 
     // Back in the chat, the plan is recorded in the thread
@@ -172,14 +194,18 @@ test.describe('Suite 3: E2E Core User Flows', () => {
     await expect(page.locator('text=Recommended Spots')).toBeVisible();
     await expect(page.locator('text=Dancing Goats Coffee Bar')).toBeVisible();
     await page.locator('[data-testid="spot-custom"]').click();
-    const confirmBtn = page.locator('button:has-text("Confirm & Download .ics Meetup")');
+    const confirmBtn = page.locator('button:has-text("Confirm & Add to Google Calendar")');
     await expect(confirmBtn).toBeDisabled();
     await page.getByLabel(/Place name/).fill('Piedmont Park');
     await page.getByLabel(/^Address/).fill('400 Park Dr NE, Atlanta, GA');
 
-    const download = page.waitForEvent('download');
-    await confirmBtn.click();
-    await download;
+    // A 2-hour meetup; Confirm opens Google Calendar with the right length
+    await page.locator('[data-testid="meetup-duration-120"]').click();
+    const gcalUrl = await captureGoogleCalendar(page, () => confirmBtn.click());
+    const [start, end] = gcalUrl.searchParams.get('dates')!.split('/');
+    const toMs = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +d.slice(9, 11), +d.slice(11, 13));
+    expect(toMs(end) - toMs(start)).toBe(2 * 60 * 60 * 1000);
+    expect(gcalUrl.searchParams.get('location')).toContain('400 Park Dr NE');
     await expect(page.locator('text=Meetup Confirmed!')).toBeVisible();
     await page.locator('button', { hasText: 'Back to ThirdPlace' }).click();
     await expect(chat).toContainText('meetup at Piedmont Park (400 Park Dr NE, Atlanta, GA)');
