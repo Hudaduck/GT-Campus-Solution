@@ -230,7 +230,7 @@ describe('QA: theme switch reachable on phones (My Profile)', () => {
 describe('Demo readiness', () => {
   beforeEach(() => Repository.resetAllData());
 
-  it("a fresh demo shows Sarah's seed RSVPs in My Plans, marked Going, and Leave really leaves", () => {
+  it("a fresh demo shows Sarah's hosted seed pop-ups in My Plans, and as host she deletes rather than leaves", () => {
     // Seeds RSVP Sarah's directory twin (user_sarah_jenkins); the signed-in Sarah should own them
     const mine = Repository.getEvents().filter((e) => e.attendees.includes(INITIAL_CURRENT_USER.id));
     expect(mine.map((e) => e.id).sort()).toEqual(['event_beltline_sunset_run', 'event_fintech_alumni_dinner']);
@@ -239,11 +239,13 @@ describe('Demo readiness', () => {
     render(React.createElement(MyPlansView, {}));
     expect(screen.getByText(/^RSVPs \(2\)$/)).toBeDefined();
 
-    const before = Repository.getEvents().find((e) => e.id === 'event_fintech_alumni_dinner')!.attendees.length;
-    Repository.rsvpEvent('event_fintech_alumni_dinner', INITIAL_CURRENT_USER.id); // Leave
-    const after = Repository.getEvents().find((e) => e.id === 'event_fintech_alumni_dinner')!;
-    expect(after.attendees).not.toContain(INITIAL_CURRENT_USER.id);
-    expect(after.attendees.length).toBe(before - 1);
+    // Sarah (via her twin) hosts both, so "Leave" is refused and the pop-up stays hers...
+    expect(Repository.getEvents().find((e) => e.id === 'event_fintech_alumni_dinner')!.hostId).toBe(INITIAL_CURRENT_USER.id);
+    expect(Repository.rsvpEvent('event_fintech_alumni_dinner', INITIAL_CURRENT_USER.id)).toBe(false);
+    expect(Repository.getEvents().find((e) => e.id === 'event_fintech_alumni_dinner')!.attendees).toContain(INITIAL_CURRENT_USER.id);
+    // ...and deleting removes it
+    expect(Repository.deleteEvent('event_fintech_alumni_dinner', INITIAL_CURRENT_USER)).toBe(true);
+    expect(Repository.getEvents().some((e) => e.id === 'event_fintech_alumni_dinner')).toBe(false);
   });
 
   it('Reset demo needs a second tap, then restores the defaults', () => {

@@ -19,6 +19,8 @@ const STORAGE_KEYS = {
   MEETUPS: 'thirdplace_meetups_data',
   MESSAGES: 'thirdplace_messages_data',
   CHAT_READ: 'thirdplace_chat_read',
+  // Built-in pop-ups the host deleted, so the rolling seeds don't bring them back
+  DELETED_EVENTS: 'thirdplace_deleted_events',
 };
 
 // Simulated partner reply delay (no backend, so the matched person answers the opener once)
@@ -1316,7 +1318,10 @@ export class Repository {
     // pop-ups only come back if a LinkedIn import seeded that ecosystem before.
     const present = new Set(renewed.map((e) => e.id));
     const hasEcosystem = this.readStoredProfiles().some((p) => p.id === HOBBY_ECOSYSTEM_PROFILES[0].id);
-    const missing = [...freshSeeds, ...(hasEcosystem ? ecosystemSeeds : [])].filter((e) => !present.has(e.id));
+    const deleted = new Set(this.getDeletedEventIds());
+    const missing = [...freshSeeds, ...(hasEcosystem ? ecosystemSeeds : [])].filter(
+      (e) => !present.has(e.id) && !deleted.has(e.id)
+    );
     return [...renewed, ...missing];
   }
 
@@ -1341,6 +1346,36 @@ export class Repository {
     }
   }
 
+  private static getDeletedEventIds(): string[] {
+    if (!this.isSafeStorageAvailable()) return [];
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_EVENTS) || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Delete a pop-up. Only its host can (twins count, see isSamePerson). Built-in demo pop-ups
+   * are remembered as deleted so renewSeedEvents doesn't re-issue them.
+   */
+  static deleteEvent(eventId: string, viewer: UserProfile): boolean {
+    const events = this.getEvents(); // twin hosts already read as the signed-in user
+    const event = events.find((e) => e.id === eventId);
+    if (!event || event.hostId !== viewer.id) return false;
+    if (!this.isSafeStorageAvailable()) return false;
+    try {
+      localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(events.filter((e) => e.id !== eventId)));
+      const deleted = new Set(this.getDeletedEventIds());
+      deleted.add(eventId);
+      localStorage.setItem(STORAGE_KEYS.DELETED_EVENTS, JSON.stringify([...deleted]));
+    } catch (e) {
+      console.warn('Error deleting event:', e);
+      return false;
+    }
+    return true;
+  }
+
   static rsvpEvent(eventId: string, userId: string): boolean {
     const events = this.getEvents();
     const index = events.findIndex((e) => e.id === eventId);
@@ -1348,6 +1383,8 @@ export class Repository {
 
     const event = events[index];
     const isAttending = event.attendees.includes(userId);
+    // The host can't "leave" their own pop-up; they delete it instead (deleteEvent)
+    if (isAttending && event.hostId === userId) return false;
     if (isAttending) {
       event.attendees = event.attendees.filter((id) => id !== userId);
     } else {
@@ -1795,6 +1832,7 @@ export class Repository {
         localStorage.removeItem(STORAGE_KEYS.MEETUPS);
         localStorage.removeItem(STORAGE_KEYS.MESSAGES);
         localStorage.removeItem(STORAGE_KEYS.CHAT_READ);
+        localStorage.removeItem(STORAGE_KEYS.DELETED_EVENTS);
         // Fresh seed times relative to *now* (INITIAL_EVENTS is stamped once at module load)
         localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(buildInitialEvents(Date.now())));
         localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(INITIAL_PROFILES));

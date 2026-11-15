@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Clock, MapPin, Users, Share2, Check, X, Sparkles, Star, CalendarPlus } from 'lucide-react';
 import { ScoredEventItem } from './types';
 import { eventTimeLabel } from './eventTime';
@@ -14,6 +14,8 @@ interface EventDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onRsvpSuccess?: (updatedEvent: ScoredEventItem) => void;
+  /** The host deleted this pop-up */
+  onDeleted?: (eventId: string) => void;
 }
 
 export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({
@@ -22,13 +24,23 @@ export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({
   isOpen,
   onClose,
   onRsvpSuccess,
+  onDeleted,
 }) => {
   const [copiedLink, setCopiedLink] = useState(false);
   const [rsvpLoading, setRsvpLoading] = useState(false);
+  // Delete needs a second tap; disarm after a few seconds or when another event opens
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  useEffect(() => setDeleteArmed(false), [event?.id, isOpen]);
+  useEffect(() => {
+    if (!deleteArmed) return;
+    const t = window.setTimeout(() => setDeleteArmed(false), 4000);
+    return () => window.clearTimeout(t);
+  }, [deleteArmed]);
 
   if (!isOpen || !event) return null;
 
   const isAttending = event.attendees.includes(currentUser.id);
+  const isHost = event.hostId === currentUser.id;
   const spotsRemaining = Math.max(0, event.maxAttendees - event.attendees.length);
   const isFull = spotsRemaining === 0 && !isAttending;
   const fillPercentage = Math.min(100, Math.round((event.attendees.length / event.maxAttendees) * 100));
@@ -40,6 +52,15 @@ export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({
     } catch {
       return isoString;
     }
+  };
+
+  const handleDelete = () => {
+    if (!deleteArmed) {
+      setDeleteArmed(true);
+      return;
+    }
+    if (Repository.deleteEvent(event.id, currentUser)) onDeleted?.(event.id);
+    setDeleteArmed(false);
   };
 
   const handleToggleRsvp = () => {
@@ -270,6 +291,29 @@ export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({
 
         {/* Action Buttons: 1-Tap RSVP & Shareable Link */}
         <div className="space-y-2.5">
+          {isHost ? (
+            <div className="flex gap-2">
+              <div
+                data-testid="hosting-status"
+                className="flex-1 py-3.5 px-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 bg-tp-elevated text-tp-accent border-2 border-[#B39051]"
+              >
+                <Star className="w-4 h-4" />
+                You're hosting
+              </div>
+              <button
+                type="button"
+                data-testid="delete-event"
+                onClick={handleDelete}
+                className={`px-4 rounded-2xl text-sm font-bold transition border ${
+                  deleteArmed
+                    ? 'bg-red-500 border-red-500 text-white'
+                    : 'border-red-500/40 text-red-400 hover:bg-red-500/10'
+                }`}
+              >
+                {deleteArmed ? 'Tap to delete' : 'Delete event'}
+              </button>
+            </div>
+          ) : (
           <button
             data-testid="rsvp-button"
             onClick={handleToggleRsvp}
@@ -296,6 +340,7 @@ export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({
               </>
             )}
           </button>
+          )}
 
           <button
             data-testid="share-link-button"

@@ -522,6 +522,11 @@ export const EventsMapView: React.FC<EventsMapViewProps> = ({ layout = 'phone' }
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         onRsvpSuccess={handleRsvpSuccess}
+        onDeleted={(eventId) => {
+          setIsDetailOpen(false);
+          setSelectedEvent(null);
+          setEvents((prev) => prev.filter((e) => e.id !== eventId));
+        }}
       />
 
       <HostEventDrawer

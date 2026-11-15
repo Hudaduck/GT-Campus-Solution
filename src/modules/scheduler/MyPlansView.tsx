@@ -75,9 +75,21 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
     };
   }, []);
 
-  // Handle Event RSVP cancellation
+  // Leave a pop-up you joined
   const handleCancelRsvp = (eventId: string) => {
     Repository.rsvpEvent(eventId, currentUser.id);
+    loadData();
+  };
+
+  // Delete a pop-up you host: first tap arms it, second tap deletes (shares the cancel timer)
+  const handleDeleteEvent = (eventId: string) => {
+    const key = `event:${eventId}`;
+    if (cancelArmedId !== key) {
+      setCancelArmedId(key);
+      return;
+    }
+    Repository.deleteEvent(eventId, currentUser);
+    setCancelArmedId(null);
     loadData();
   };
 
@@ -440,6 +452,14 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                           <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#051E39] tp-on-navy text-tp-accent border border-[#B39051]/30 inline-block mb-1">
                             {getCategoryLabel(event.category)}
                           </span>
+                          {event.hostId === currentUser.id && (
+                            <span
+                              data-testid="hosting-badge"
+                              className="ml-1.5 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-[#B39051] text-[#051E39] inline-block mb-1"
+                            >
+                              Hosting
+                            </span>
+                          )}
                           <h4 className="font-bold text-tp-ink text-sm leading-snug line-clamp-2">
                             {event.title}
                           </h4>
@@ -491,12 +511,27 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                       >
                         <CalendarPlus className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />Google Calendar
                       </a>
-                      <button
-                        onClick={() => handleCancelRsvp(event.id)}
-                        className="text-tp-subtle hover:text-red-400 text-xs px-2 py-1.5"
-                      >
-                        Leave
-                      </button>
+                      {event.hostId === currentUser.id ? (
+                        <button
+                          data-testid="event-delete"
+                          onClick={() => handleDeleteEvent(event.id)}
+                          className={`text-xs px-2 py-1.5 rounded-lg font-semibold whitespace-nowrap transition ${
+                            cancelArmedId === `event:${event.id}`
+                              ? 'bg-red-500 text-white'
+                              : 'text-tp-subtle hover:text-red-400'
+                          }`}
+                        >
+                          {cancelArmedId === `event:${event.id}` ? 'Tap to delete' : 'Delete'}
+                        </button>
+                      ) : (
+                        <button
+                          data-testid="event-leave"
+                          onClick={() => handleCancelRsvp(event.id)}
+                          className="text-tp-subtle hover:text-red-400 text-xs px-2 py-1.5"
+                        >
+                          Leave
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

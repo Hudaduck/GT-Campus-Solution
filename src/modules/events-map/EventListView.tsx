@@ -208,7 +208,9 @@ export const EventListView: React.FC<EventListViewProps> = ({
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={(e) => handleQuickRsvp(e, event)}
+                      onClick={(e) =>
+                        event.hostId === currentUser.id ? (e.stopPropagation(), onSelectEvent(event)) : handleQuickRsvp(e, event)
+                      }
                       disabled={isFull}
                       data-testid={`quick-rsvp-${event.id}`}
                       className={`min-h-[44px] px-4 rounded-xl text-xs font-black transition active:scale-95 flex items-center gap-1 ${
@@ -219,7 +221,9 @@ export const EventListView: React.FC<EventListViewProps> = ({
                           : 'bg-[#B39051] text-[#051E39] hover:bg-[#8F713D] active:bg-[#8F713D]'
                       }`}
                     >
-                      {isAttending ? (
+                      {event.hostId === currentUser.id ? (
+                        <span>Hosting</span>
+                      ) : isAttending ? (
                         <>
                           <Check className="w-3.5 h-3.5" />
                           <span>Going</span>
