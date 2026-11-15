@@ -189,10 +189,13 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
     setIsFullProfileOpen(false);
   }, [currentCandidate?.id, activeDeck]);
 
-  // Handle TTL update for 'Open to Meet'
-  const handleSetTtl = (hours: number | null) => {
+  // Handle TTL update for 'Open to Meet' ('indefinite' = visible until turned off: no expiry)
+  const handleSetTtl = (hours: number | 'indefinite' | null) => {
     const updated = { ...currentUser };
-    if (hours === null || hours <= 0) {
+    if (hours === 'indefinite') {
+      updated.isOpenToMeet = true;
+      delete updated.openToMeetExpiresAt;
+    } else if (hours === null || hours <= 0) {
       updated.isOpenToMeet = false;
       delete updated.openToMeetExpiresAt;
     } else {
@@ -293,9 +296,11 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
           <p className="text-xs text-tp-muted truncate">
             <span className="font-bold text-tp-ink">{currentUser.isOpenToMeet ? 'Open to Meet' : 'Not visible'}</span>
             {' · '}
-            {currentUser.isOpenToMeet && currentUser.openToMeetExpiresAt
-              ? `Expires in ${formatTtlRemaining(currentUser.openToMeetExpiresAt)}`
-              : 'Go live to get meetup invites'}
+            {!currentUser.isOpenToMeet
+              ? 'Go live to get meetup invites'
+              : currentUser.openToMeetExpiresAt
+                ? `Expires in ${formatTtlRemaining(currentUser.openToMeetExpiresAt)}`
+                : 'No time limit'}
           </p>
         </div>
 
@@ -736,7 +741,8 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
             </div>
 
             <p className="text-xs text-tp-muted">
-              While you're Open to Meet, nearby Yellow Jackets can invite you to a coffee chat. It turns off automatically when time's up.
+              While you're Open to Meet, nearby Yellow Jackets can invite you to a coffee chat. Timed options turn off
+              automatically, or stay visible until you turn it off yourself.
             </p>
 
             <div className="grid grid-cols-2 gap-2 pt-1">
@@ -751,6 +757,20 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                   <span className="block text-[10px] font-medium text-tp-subtle">{opt.hint}</span>
                 </button>
               ))}
+              <button
+                type="button"
+                data-testid="open-to-meet-indefinite"
+                aria-pressed={currentUser.isOpenToMeet && !currentUser.openToMeetExpiresAt}
+                onClick={() => handleSetTtl('indefinite')}
+                className={`col-span-2 py-2.5 px-3 rounded-xl border font-semibold text-xs transition text-center ${
+                  currentUser.isOpenToMeet && !currentUser.openToMeetExpiresAt
+                    ? 'border-[#B39051] bg-tp-elevated text-tp-accent'
+                    : 'border-[#B39051]/35 bg-tp-canvas text-tp-ink hover:border-[#B39051] hover:text-tp-accent'
+                }`}
+              >
+                <span className="block">Until I turn it off</span>
+                <span className="block text-[10px] font-medium text-tp-subtle">No time limit</span>
+              </button>
             </div>
 
             <div className="pt-2 border-t border-[#B39051]/35 flex gap-2">

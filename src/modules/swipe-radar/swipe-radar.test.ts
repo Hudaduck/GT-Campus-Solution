@@ -289,4 +289,30 @@ describe('SwipeRadarView Component', () => {
     fireEvent.click(getByTestId('widen-radius'));
     expect(Repository.getCurrentUser().locationPreference?.radiusMiles).toBe(1);
   });
+
+  it('offers an indefinite Open to Meet that never expires until turned off', () => {
+    const { getByText, getByTestId } = render(React.createElement(SwipeRadarView, {}));
+    fireEvent.click(getByText('Change'));
+    fireEvent.click(getByTestId('open-to-meet-indefinite'));
+
+    const saved = Repository.getCurrentUser();
+    expect(saved.isOpenToMeet).toBe(true);
+    expect(saved.openToMeetExpiresAt).toBeUndefined();
+    expect(getByText(/No time limit/)).toBeDefined();
+
+    // Still on far in the future (nothing to expire)
+    const later = Date.now() + 1000 * 60 * 60 * 24 * 30;
+    const realNow = Date.now;
+    Date.now = () => later;
+    try {
+      expect(Repository.getCurrentUser().isOpenToMeet).toBe(true);
+    } finally {
+      Date.now = realNow;
+    }
+
+    // Turning it off still works
+    fireEvent.click(getByText('Change'));
+    fireEvent.click(getByText('Turn Off (Pause)'));
+    expect(Repository.getCurrentUser().isOpenToMeet).toBe(false);
+  });
 });
