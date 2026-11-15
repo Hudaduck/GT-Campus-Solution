@@ -230,17 +230,18 @@ describe('QA: theme switch reachable on phones (My Profile)', () => {
 describe('Demo readiness', () => {
   beforeEach(() => Repository.resetAllData());
 
-  it("a fresh demo shows Sarah's hosted seed pop-ups in My Plans, and as host she deletes rather than leaves", () => {
+  it("a fresh demo: Sarah hosts one seed pop-up and is going to another; as host she deletes rather than leaves", () => {
     // Seeds RSVP Sarah's directory twin (user_sarah_jenkins); the signed-in Sarah should own them
     const mine = Repository.getEvents().filter((e) => e.attendees.includes(INITIAL_CURRENT_USER.id));
     expect(mine.map((e) => e.id).sort()).toEqual(['event_beltline_sunset_run', 'event_fintech_alumni_dinner']);
     expect(Repository.getEvents().some((e) => e.attendees.includes('user_sarah_jenkins'))).toBe(false);
 
     render(React.createElement(MyPlansView, {}));
-    expect(screen.getByText(/^Hosting \(2\)$/)).toBeDefined();
-    expect(screen.getByText(/^RSVPs \(0\)$/)).toBeDefined();
+    expect(screen.getByText(/^Hosting \(1\)$/)).toBeDefined();
+    expect(screen.getByText(/^RSVPs \(1\)$/)).toBeDefined(); // BeltLine 5K (hosted by Marcus)
 
-    // Sarah (via her twin) hosts both, so "Leave" is refused and the pop-up stays hers...
+    expect(Repository.getEvents().find((e) => e.id === 'event_beltline_sunset_run')!.hostId).toBe('user_marcus_vance');
+    // Sarah (via her twin) hosts the Fintech chat, so "Leave" is refused and the pop-up stays hers...
     expect(Repository.getEvents().find((e) => e.id === 'event_fintech_alumni_dinner')!.hostId).toBe(INITIAL_CURRENT_USER.id);
     expect(Repository.rsvpEvent('event_fintech_alumni_dinner', INITIAL_CURRENT_USER.id)).toBe(false);
     expect(Repository.getEvents().find((e) => e.id === 'event_fintech_alumni_dinner')!.attendees).toContain(INITIAL_CURRENT_USER.id);

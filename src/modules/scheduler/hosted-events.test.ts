@@ -30,7 +30,8 @@ describe('Hosting vs attending a pop-up', () => {
 
   it('My Plans: hosted pop-ups show Hosting + two-tap Delete instead of Leave', () => {
     render(React.createElement(MyPlansView, {}));
-    expect(screen.getAllByTestId('hosting-badge').length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('hosting-badge')).toHaveLength(1); // the demo hosts exactly one
+    fireEvent.click(screen.getByTestId('plans-tab-hosting'));
     expect(screen.queryByTestId('event-leave')).toBeNull();
 
     const before = screen.getAllByTestId('event-delete').length;
@@ -47,8 +48,8 @@ describe('Hosting vs attending a pop-up', () => {
     )!;
     Repository.rsvpEvent(joinable.id, INITIAL_CURRENT_USER.id);
     render(React.createElement(MyPlansView, {}));
-    expect(screen.getByText(joinable.title)).toBeDefined();
-    fireEvent.click(screen.getByTestId('event-leave'));
+    const card = screen.getByText(joinable.title).closest('[data-testid="plans-event-card"]') as HTMLElement;
+    fireEvent.click(card.querySelector('[data-testid="event-leave"]')!);
     expect(screen.queryByText(joinable.title)).toBeNull();
   });
 
@@ -104,7 +105,7 @@ describe('Directions links and the Hosting tab', () => {
     expect(screen.queryByText(joinable.title)).toBeNull();
     expect(screen.getByText('Fintech & Quant Fireside Chat @ Tech Square')).toBeDefined();
 
-    fireEvent.click(screen.getByText(/^RSVPs \(1\)$/));
+    fireEvent.click(screen.getByText(/^RSVPs \(2\)$/)); // + Sarah's seed RSVP (BeltLine 5K)
     expect(screen.getByText(joinable.title)).toBeDefined();
     expect(screen.queryByTestId('plans-section-hosting')).toBeNull();
   });
@@ -124,9 +125,9 @@ describe('Pop-ups you joined, in My Plans', () => {
   it('tapping the card opens the event info sheet; its buttons do not', () => {
     const joined = joinOne();
     render(React.createElement(MyPlansView, {}));
-    fireEvent.click(screen.getByText(/^RSVPs \(1\)$/));
+    fireEvent.click(screen.getByText(/^RSVPs \(2\)$/));
 
-    fireEvent.click(screen.getByTestId('event-directions')); // a link: no sheet
+    fireEvent.click(screen.getAllByTestId('event-directions')[0]); // a link: no sheet
     expect(screen.queryByTestId('rsvp-button')).toBeNull();
 
     fireEvent.click(screen.getByText(joined.title));
@@ -136,11 +137,28 @@ describe('Pop-ups you joined, in My Plans', () => {
   it('can leave from the sheet as well as from the card', () => {
     const joined = joinOne();
     render(React.createElement(MyPlansView, {}));
-    fireEvent.click(screen.getByText(/^RSVPs \(1\)$/));
+    fireEvent.click(screen.getByText(/^RSVPs \(2\)$/));
     fireEvent.click(screen.getByText(joined.title));
     fireEvent.click(screen.getByTestId('rsvp-button'));
 
     expect(Repository.getEvents().find((e) => e.id === joined.id)!.attendees).not.toContain(INITIAL_CURRENT_USER.id);
-    expect(screen.getByText(/^RSVPs \(0\)$/)).toBeDefined();
+    expect(screen.getByText(/^RSVPs \(1\)$/)).toBeDefined();
+  });
+});
+
+describe('Demo hosts one pop-up per persona', () => {
+  beforeEach(() => Repository.resetAllData());
+
+  it('Sarah hosts only the Fintech chat, even with an older saved copy where she hosted the 5K', () => {
+    const stored = JSON.parse(localStorage.getItem('thirdplace_events_data') || '[]');
+    const run = stored.find((e: { id: string }) => e.id === 'event_beltline_sunset_run');
+    Object.assign(run, { hostId: 'user_sarah_jenkins', hostName: 'Sarah Jenkins', hostRole: 'alumni' });
+    localStorage.setItem('thirdplace_events_data', JSON.stringify(stored));
+
+    const hosted = Repository.getEvents().filter((e) => e.hostId === INITIAL_CURRENT_USER.id).map((e) => e.id);
+    expect(hosted).toEqual([FINTECH]);
+    const runNow = Repository.getEvents().find((e) => e.id === 'event_beltline_sunset_run')!;
+    expect(runNow.hostName).toBe('Marcus Vance');
+    expect(runNow.attendees).toContain(INITIAL_CURRENT_USER.id); // still going
   });
 });

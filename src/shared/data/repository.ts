@@ -506,10 +506,10 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
       id: 'event_beltline_sunset_run',
       title: 'BeltLine Eastside Trail 5K Social Run',
       description: 'Meet at Piedmont Park Active Oval, easy conversational pace (9:00/mi) along the BeltLine down to Krog Street Market for popsicles.',
-      hostId: 'user_sarah_jenkins',
-      hostName: 'Sarah Jenkins',
-      hostRole: 'alumni',
-      hostAvatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
+      hostId: 'user_marcus_vance',
+      hostName: 'Marcus Vance',
+      hostRole: 'student',
+      hostAvatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80',
       locationName: 'Piedmont Park Active Oval',
       lat: 33.7850,
       lng: -84.3735,
@@ -519,9 +519,9 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
       createdAt: now - 1000 * 60 * 90,
       category: 'sports',
       maxAttendees: 18,
-      attendees: ['user_sarah_jenkins', 'user_marcus_vance', 'user_maya_patel'],
+      attendees: ['user_marcus_vance', 'user_sarah_jenkins', 'user_maya_patel'], // Sarah is going (demo: 1 hosted, 1 RSVP)
       tags: ['Running', 'Sports', 'Fitness'],
-      isHostAlum: true,
+      isHostAlum: false,
     },
     {
       id: 'event_west_midtown_coffee_study',
@@ -1309,9 +1309,13 @@ export class Repository {
 
     const renewed = events.map((event) => {
       const template = templates.get(event.id);
-      if (!template || event.expiresAt > now) return event;
+      if (!template) return event;
+      // Who hosts a built-in pop-up always comes from the seed (so seed edits reach old browsers)
+      const { hostId, hostName, hostRole, hostAvatarUrl, isHostAlum } = template;
+      const hosted = { ...event, hostId, hostName, hostRole, hostAvatarUrl, isHostAlum };
+      if (event.expiresAt > now) return hosted;
       const { startTime, endTime, expiresAt, createdAt } = template;
-      return { ...event, startTime, endTime, expiresAt, createdAt };
+      return { ...hosted, startTime, endTime, expiresAt, createdAt };
     });
 
     // Restore seeds that an older build already pruned from storage. Volleyball / Baking
