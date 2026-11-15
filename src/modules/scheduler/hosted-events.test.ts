@@ -109,3 +109,38 @@ describe('Directions links and the Hosting tab', () => {
     expect(screen.queryByTestId('plans-section-hosting')).toBeNull();
   });
 });
+
+describe('Pop-ups you joined, in My Plans', () => {
+  beforeEach(() => Repository.resetAllData());
+
+  const joinOne = () => {
+    const joinable = Repository.getEvents().find(
+      (e) => e.hostId !== INITIAL_CURRENT_USER.id && !e.attendees.includes(INITIAL_CURRENT_USER.id) && e.attendees.length < e.maxAttendees
+    )!;
+    Repository.rsvpEvent(joinable.id, INITIAL_CURRENT_USER.id);
+    return joinable;
+  };
+
+  it('tapping the card opens the event info sheet; its buttons do not', () => {
+    const joined = joinOne();
+    render(React.createElement(MyPlansView, {}));
+    fireEvent.click(screen.getByText(/^RSVPs \(1\)$/));
+
+    fireEvent.click(screen.getByTestId('event-directions')); // a link: no sheet
+    expect(screen.queryByTestId('rsvp-button')).toBeNull();
+
+    fireEvent.click(screen.getByText(joined.title));
+    expect(screen.getByTestId('rsvp-button').textContent).toContain('Tap to Leave');
+  });
+
+  it('can leave from the sheet as well as from the card', () => {
+    const joined = joinOne();
+    render(React.createElement(MyPlansView, {}));
+    fireEvent.click(screen.getByText(/^RSVPs \(1\)$/));
+    fireEvent.click(screen.getByText(joined.title));
+    fireEvent.click(screen.getByTestId('rsvp-button'));
+
+    expect(Repository.getEvents().find((e) => e.id === joined.id)!.attendees).not.toContain(INITIAL_CURRENT_USER.id);
+    expect(screen.getByText(/^RSVPs \(0\)$/)).toBeDefined();
+  });
+});

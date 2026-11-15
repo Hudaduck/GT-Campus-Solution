@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarDays, CalendarPlus, Coffee, Zap, MapPin, Clock, Download, Ticket, Map as MapIcon, Users, MessageCircle, Video, Star } from 'lucide-react';
+import { CalendarDays, CalendarPlus, ChevronRight, Coffee, Zap, MapPin, Clock, Download, Ticket, Map as MapIcon, Users, MessageCircle, Video, Star } from 'lucide-react';
 import { EventItem, MatchItem, CalendarMeetup, UserProfile } from '../../shared/contracts';
 import { Repository, USER_CHANGED_EVENT, isSamePerson } from '../../shared/data/repository';
 import { LayoutMode } from '../../shared/ui/layout';
@@ -9,6 +9,7 @@ import { getCategoryLabel } from '../../shared/ui/categoryIcons';
 import { ChatDrawer } from './ChatDrawer';
 import { avatarSrc } from '../../shared/ui/avatarSrc';
 import { directionsUrl, eventDirectionsUrl } from '../../shared/maps';
+import { EventDetailDrawer, getEventScoreDetails, type ScoredEventItem } from '../events-map';
 
 interface MyPlansViewProps {
   onNavigateToRadar?: () => void;
@@ -47,6 +48,8 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
   const [schedulerMatchId, setSchedulerMatchId] = useState<string | undefined>(undefined);
   const [isSchedulerOpen, setIsSchedulerOpen] = useState<boolean>(false);
   const [chatPartner, setChatPartner] = useState<UserProfile | null>(null);
+  // Pop-up opened from a card: the same event info sheet as on the map
+  const [detailEvent, setDetailEvent] = useState<ScoredEventItem | null>(null);
 
   const loadData = () => {
     const user = Repository.getCurrentUser();
@@ -75,6 +78,19 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
       window.removeEventListener(USER_CHANGED_EVENT, handleStorage);
     };
   }, []);
+
+  const openEventDetails = (event: EventItem) => {
+    const details = getEventScoreDetails(event, currentUser, Repository.getProfiles());
+    setDetailEvent({
+      ...event,
+      score: details.score,
+      isRecommended: false,
+      sharedHobbies: event.tags.filter((t) => currentUser.hobbies.some((h) => h.toLowerCase() === t.toLowerCase())),
+      matchReasons: details.matchReasons,
+      attendeeHighlightText: details.attendeeHighlightText,
+      overlappingAttendees: details.overlappingAttendees,
+    });
+  };
 
   // Leave a pop-up you joined
   const handleCancelRsvp = (eventId: string) => {
@@ -205,7 +221,22 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
             return (
               <div
                 key={event.id}
-                className="bg-tp-surface border border-[#B39051]/35 rounded-2xl p-4 shadow-md flex flex-col justify-between hover:border-[#B39051]/60 transition"
+                data-testid="plans-event-card"
+                role="button"
+                tabIndex={0}
+                aria-label={`${event.title}: event details`}
+                // The whole card opens the event info; its own buttons and links do their own thing
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest('a, button')) return;
+                  openEventDetails(event);
+                }}
+                onKeyDown={(e) => {
+                  if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    openEventDetails(event);
+                  }
+                }}
+                className="bg-tp-surface border border-[#B39051]/35 rounded-2xl p-4 shadow-md flex flex-col justify-between hover:border-[#B39051]/60 transition cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#B39051]"
               >
                 <div>
                   <div className="flex items-start justify-between gap-2">
@@ -223,6 +254,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                       )}
                       <h4 className="font-bold text-tp-ink text-sm leading-snug line-clamp-2">
                         {event.title}
+                        <ChevronRight aria-hidden="true" className="inline w-3.5 h-3.5 ml-0.5 -mt-0.5 text-tp-accent" />
                       </h4>
                     </div>
                     <span className="text-xs text-tp-muted bg-tp-elevated px-2 py-1 rounded-lg shrink-0">
@@ -297,7 +329,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                     <button
                       data-testid="event-leave"
                       onClick={() => handleCancelRsvp(event.id)}
-                      className="text-tp-subtle hover:text-red-400 text-xs px-2 py-1.5"
+                      className="py-1.5 px-3 rounded-lg border border-red-500/40 text-red-400 font-semibold text-xs hover:bg-red-500/10 transition whitespace-nowrap"
                     >
                       Leave
                     </button>
@@ -738,6 +770,22 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
       )}
 
       </div>
+
+      {/* Event info (same sheet as the map): RSVP / leave, directions, host delete */}
+      <EventDetailDrawer
+        event={detailEvent}
+        currentUser={currentUser}
+        isOpen={!!detailEvent}
+        onClose={() => setDetailEvent(null)}
+        onRsvpSuccess={(updated) => {
+          setDetailEvent(updated);
+          loadData();
+        }}
+        onDeleted={() => {
+          setDetailEvent(null);
+          loadData();
+        }}
+      />
 
       {/* Chat Drawer */}
       <ChatDrawer
