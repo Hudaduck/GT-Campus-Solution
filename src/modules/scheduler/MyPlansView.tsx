@@ -97,6 +97,8 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
 
   // Web "All" view is a two-column dashboard: 1-on-1s + matches left, event RSVPs right
   const isDashboard = layout === 'web' && activeTab === 'all';
+  // Inside a half-width dashboard column, a second split makes cards too narrow to read
+  const cardGrid = isDashboard ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 md:grid-cols-2 gap-3';
 
   return (
     <div
@@ -179,7 +181,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
             <div className="p-6 bg-tp-surface/80 rounded-2xl border border-dashed border-[#B39051]/35 text-center space-y-2">
               <p className="text-sm text-tp-muted">No scheduled 1-on-1 meetups yet.</p>
               <p className="text-xs text-tp-subtle">
-                Match with students and alumni on Swipe Radar, message them, then meet in person or online.
+                Find students and alumni in Connect 1-on-1, message them, then meet in person or online.
               </p>
               {onNavigateToRadar && (
                 <button
@@ -187,12 +189,12 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                   className="mt-2 px-4 py-2 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition inline-flex items-center gap-1.5"
                 >
                   <Zap className="w-3.5 h-3.5" />
-                  <span>Open Swipe Radar</span>
+                  <span>Open Connect 1-on-1</span>
                 </button>
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className={cardGrid}>
               {meetups.map((meetup) => (
                 <div
                   key={meetup.id}
@@ -343,7 +345,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className={cardGrid}>
               {events.map((event) => {
                 const googleCalUrl = generateGoogleCalendarUrl({
                   title: event.title,
@@ -441,59 +443,59 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
             </h3>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className={cardGrid}>
             {pendingMatches.map((match) => (
               <div
                 key={match.id}
-                className="bg-tp-surface border border-[#B39051]/40 rounded-2xl p-4 shadow-md flex items-center justify-between gap-3"
+                data-testid="pending-match-card"
+                className="bg-tp-surface border border-[#B39051]/40 rounded-2xl p-4 shadow-md flex flex-col gap-3"
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-start gap-3">
                   <img
                     src={match.partnerProfile.avatarUrl}
                     alt={match.partnerProfile.name}
                     className="w-12 h-12 rounded-full object-cover border-2 border-[#B39051] shrink-0"
                   />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-tp-ink text-sm truncate">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <h4 className="font-bold text-tp-ink text-sm leading-tight break-words">
                         {match.partnerProfile.name}
                       </h4>
-                      <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#8F713D] text-white">
+                      <span className="shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-[#8F713D] text-white">
                         {match.partnerProfile.role}
                       </span>
                     </div>
-                    <p className="text-xs text-tp-muted truncate">
+                    <p className="text-xs text-tp-muted mt-0.5 line-clamp-2">
                       {match.partnerProfile.companyOrLab || match.partnerProfile.major}
                     </p>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {match.sharedHobbies.slice(0, 2).map((h) => (
-                        <span
-                          key={h}
-                          className="text-[10px] bg-[#B39051]/20 text-tp-accent px-1.5 py-0.2 rounded"
-                        >
-                          {h}
-                        </span>
-                      ))}
-                    </div>
+                    {match.sharedHobbies.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {match.sharedHobbies.slice(0, 3).map((h) => (
+                          <span key={h} className="text-[10px] bg-[#B39051]/20 text-tp-accent px-1.5 py-0.5 rounded">
+                            {h}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-1.5 shrink-0">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => setChatPartner(match.partnerProfile)}
-                    className="py-2 px-3 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition whitespace-nowrap shadow-md"
+                    className="flex-1 min-h-[40px] px-3 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition whitespace-nowrap shadow-md"
                   >
                     <MessageCircle className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />Message
                   </button>
                   {Repository.hasConversation(match.id, currentUser.id) ? (
                     <button
                       onClick={() => handleScheduleFromMatch(match)}
-                      className="py-1.5 px-3 rounded-xl border border-[#B39051]/60 text-tp-ink font-semibold text-xs hover:bg-tp-elevated transition whitespace-nowrap"
+                      className="flex-1 min-h-[40px] px-3 rounded-xl border border-[#B39051]/60 text-tp-ink font-semibold text-xs hover:bg-tp-elevated transition whitespace-nowrap"
                     >
                       <CalendarDays className="inline w-3.5 h-3.5 mr-1 -mt-0.5 text-tp-accent" />Schedule
                     </button>
                   ) : (
-                    <span className="text-[10px] text-tp-subtle text-center max-w-[96px] leading-tight">
+                    <span className="flex-1 text-[11px] text-tp-subtle leading-tight">
                       Chat first to plan a meetup
                     </span>
                   )}

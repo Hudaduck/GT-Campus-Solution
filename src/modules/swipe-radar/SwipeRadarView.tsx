@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, MeetupIntent, MatchItem, SwipeCandidate } from '../../shared/contracts';
 import {
   Repository,
@@ -34,7 +34,6 @@ import { LayoutMode } from '../../shared/ui/layout';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { ChatDrawer } from '../scheduler';
 import { MatchBreakdownCard } from './MatchBreakdownCard';
-import { useSwipeGesture, SwipeDirection } from './useSwipeGesture';
 
 interface SwipeRadarViewProps {
   onNavigateToPlans?: () => void;
@@ -158,17 +157,6 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
       setCurrentIndex((prev) => prev + 1);
     }
   };
-
-  const handleSwipe = useCallback(
-    (direction: SwipeDirection) => {
-      if (!currentCandidate) return;
-      if (direction === 'right') handleConnect(currentCandidate);
-      else handlePass();
-    },
-    // handlePass/handleConnect are recreated each render; these are the values they read
-    [currentCandidate, currentIndex, filteredProfiles.length, currentUser]
-  );
-  const gesture = useSwipeGesture(handleSwipe);
 
   useEffect(() => {
     setIsFullProfileOpen(false);
@@ -314,8 +302,8 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
             <h3 className="text-sm font-black text-tp-ink">One-on-One Radar</h3>
             <p className="text-[11px] text-tp-muted">
               {currentCandidate
-                ? `Profile ${currentIndex + 1} of ${filteredProfiles.length} · Drag right to connect, left to pass`
-                : 'Swipe to meet Yellow Jackets who are open to meet'}
+                ? `Profile ${currentIndex + 1} of ${filteredProfiles.length}`
+                : 'Meet Yellow Jackets who are open to meet'}
             </p>
           </div>
 
@@ -372,31 +360,14 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                   <div className="absolute inset-x-2 top-2 bottom-0 bg-tp-surface/40 rounded-3xl border border-[#B39051]/35 -z-10 transform scale-[0.96] translate-y-2 pointer-events-none" />
                 )}
 
-                {/* Top Interactive Card (drag right to connect, left to pass) */}
+                {/* Current profile card (Pass / Connect via the buttons below) */}
                 <div
                   key={currentCandidate.id}
                   data-testid="swipe-card"
-                  {...gesture.handlers}
-                  style={gesture.style}
-                  className={`tp-swipe-card relative bg-tp-surface border-2 border-[#B39051]/50 rounded-3xl overflow-hidden shadow-2xl flex flex-col cursor-grab active:cursor-grabbing ${
+                  className={`relative bg-tp-surface border-2 border-[#B39051]/50 rounded-3xl overflow-hidden shadow-2xl flex flex-col ${
                     isWeb ? '' : 'flex-1 min-h-[340px]'
                   }`}
                 >
-                  {/* Swipe intent stamps */}
-                  <span
-                    aria-hidden="true"
-                    style={{ opacity: gesture.connectProgress }}
-                    className="pointer-events-none absolute top-14 left-4 z-20 -rotate-12 px-3 py-1 rounded-xl border-4 border-[#B39051] text-tp-accent bg-[#051E39]/70 tp-on-navy text-xl font-black tracking-widest"
-                  >
-                    CONNECT
-                  </span>
-                  <span
-                    aria-hidden="true"
-                    style={{ opacity: gesture.passProgress }}
-                    className="pointer-events-none absolute top-14 right-4 z-20 rotate-12 px-3 py-1 rounded-xl border-4 border-rose-400 text-rose-300 bg-black/50 text-xl font-black tracking-widest"
-                  >
-                    PASS
-                  </span>
 
                   {/* Photo with name, class / major and current role */}
                   <div className={`relative w-full bg-[#051E39] tp-on-navy ${isWeb ? 'h-80' : 'flex-1 min-h-[150px]'}`}>
@@ -514,8 +485,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                   {/* Action Bar (Pass / Super Connect / Connect) */}
                   <div className="shrink-0 px-3 py-2.5 bg-tp-canvas border-t border-[#B39051]/35 flex items-center gap-3">
                     <button
-                      onClick={() => gesture.swipe('left')}
-                      disabled={gesture.isExiting}
+                      onClick={handlePass}
                       aria-label="Pass"
                       className="w-12 h-12 shrink-0 rounded-full bg-tp-elevated border border-red-500/40 text-red-400 hover:bg-red-500 hover:text-white transition flex items-center justify-center shadow-md"
                       title="Pass"
@@ -534,7 +504,6 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
 
                     <button
                       onClick={() => handleConnect(currentCandidate, false)}
-                      disabled={gesture.isExiting}
                       aria-label="Connect"
                       className="flex-1 min-h-[48px] px-4 rounded-2xl bg-[#B39051] text-[#051E39] font-bold text-sm hover:bg-[#8F713D] active:bg-[#8F713D] transition flex items-center justify-center gap-2 shadow-lg"
                       title="Connect & Meet"
@@ -671,7 +640,6 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
         <MatchBreakdownCard
           candidate={activeDeck === 'radar' ? currentCandidate : null}
           viewer={currentUser}
-          upNext={filteredProfiles.slice(currentIndex + 1, currentIndex + 4)}
         />
       )}
 
@@ -887,7 +855,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                 type="button"
                 onClick={() => {
                   setIsFullProfileOpen(false);
-                  gesture.swipe('left');
+                  handlePass();
                 }}
                 className="px-4 min-h-[48px] rounded-xl border border-red-500/40 text-red-400 text-sm font-bold hover:bg-red-500/10"
               >
@@ -988,7 +956,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                 onClick={() => setShowMatchModal(false)}
                 className="w-full py-2 text-xs text-tp-muted hover:text-tp-ink"
               >
-                Keep Swiping
+                Keep Browsing
               </button>
             </div>
           </div>

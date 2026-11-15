@@ -14,7 +14,7 @@ interface PhoneShellProps {
 
 const TABS: { id: AppTab; label: string; Icon: typeof MapPin }[] = [
   { id: 'map', label: 'Map', Icon: MapPin },
-  { id: 'swipe', label: 'Swipe', Icon: Users },
+  { id: 'swipe', label: 'Connect 1-on-1', Icon: Users },
   { id: 'plans', label: 'Plans', Icon: Calendar },
 ];
 

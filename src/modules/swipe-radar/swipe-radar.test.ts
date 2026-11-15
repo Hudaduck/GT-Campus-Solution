@@ -35,16 +35,14 @@ describe('SwipeRadarView Component', () => {
     expect(getByText('Pour-Over Coffee').closest('[data-shared]')).not.toBeNull();
   });
 
-  it('advances to next candidate card when clicking pass (after the fly-out animation)', async () => {
-    const { getByText, getByTitle, findByText, queryByText } = render(
-      React.createElement(SwipeRadarView, {})
-    );
+  it('advances to the next profile immediately when clicking Pass', () => {
+    const { getByText, getByTitle, queryByText } = render(React.createElement(SwipeRadarView, {}));
 
     expect(getByText('Alex Chen')).toBeDefined();
     fireEvent.click(getByTitle('Pass'));
 
     // The viewer's own seed twin (Sarah Jenkins) is never shown, so Marcus is next
-    expect(await findByText('Marcus Vance')).toBeDefined();
+    expect(getByText('Marcus Vance')).toBeDefined();
     expect(queryByText('Sarah Jenkins')).toBeNull();
   });
 
@@ -69,30 +67,18 @@ describe('SwipeRadarView Component', () => {
     expect(elenaBadges.some((t) => t?.includes('Ex-Google'))).toBe(true);
   });
 
-  it('supports drag gestures: dragging the card right past the threshold connects', async () => {
-    const { getByTestId, findByText } = render(React.createElement(SwipeRadarView, {}));
+  it('has no drag-to-swipe: dragging the card does nothing, only the buttons act', () => {
+    const { getByTestId, getByText, queryByText } = render(React.createElement(SwipeRadarView, {}));
     const card = getByTestId('swipe-card');
 
     fireEvent.pointerDown(card, { clientX: 100, clientY: 200, pointerId: 1 });
-    fireEvent.pointerMove(card, { clientX: 180, clientY: 205, pointerId: 1 });
-    fireEvent.pointerMove(card, { clientX: 300, clientY: 210, pointerId: 1 });
-    fireEvent.pointerUp(card, { clientX: 300, clientY: 210, pointerId: 1 });
+    fireEvent.pointerMove(card, { clientX: 400, clientY: 210, pointerId: 1 });
+    fireEvent.pointerUp(card, { clientX: 400, clientY: 210, pointerId: 1 });
 
-    expect(await findByText("It's a Mutual Match!")).toBeDefined();
-    expect(Repository.getMatches()[0].partnerProfile.name).toBe('Alex Chen');
-  });
-
-  it('snaps back without swiping when the drag is too short', async () => {
-    const { getByTestId, getByText } = render(React.createElement(SwipeRadarView, {}));
-    const card = getByTestId('swipe-card');
-
-    fireEvent.pointerDown(card, { clientX: 100, clientY: 200, pointerId: 1 });
-    fireEvent.pointerMove(card, { clientX: 140, clientY: 200, pointerId: 1 });
-    fireEvent.pointerUp(card, { clientX: 140, clientY: 200, pointerId: 1 });
-
-    await new Promise((r) => setTimeout(r, 300));
     expect(getByText('Alex Chen')).toBeDefined();
     expect(Repository.getMatches().length).toBe(0);
+    expect(queryByText('CONNECT')).toBeNull();
+    expect(queryByText(/Drag right/)).toBeNull();
   });
 
   it('renders the Career & Hobby Match Breakdown card in the web layout', () => {
@@ -100,6 +86,7 @@ describe('SwipeRadarView Component', () => {
     const breakdown = getByTestId('match-breakdown-card');
     expect(breakdown.textContent).toContain('Career & Hobby Match Breakdown');
     expect(breakdown.textContent).toContain('Alex Chen');
+    expect(breakdown.textContent).not.toContain('Up next');
   });
 
   it('triggers double opt-in match modal when clicking connect and persists match in Repository', () => {
