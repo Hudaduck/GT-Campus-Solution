@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Clock, MapPin, Users, Share2, Check, X, Sparkles, Star, CalendarPlus } from 'lucide-react';
 import { ScoredEventItem } from './types';
+import { eventTimeLabel } from './eventTime';
 import { UserProfile } from '../../shared/contracts';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { Repository } from '../../shared/data/repository';
+import { getCategoryLabel } from '../../shared/ui/categoryIcons';
 
 interface EventDetailDrawerProps {
   event: ScoredEventItem | null;
@@ -37,14 +39,6 @@ export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({
     } catch {
       return isoString;
     }
-  };
-
-  const calculateHoursLeft = (expiresAt: number) => {
-    const msDiff = expiresAt - Date.now();
-    if (msDiff <= 0) return 'Expired';
-    const hours = Math.floor(msDiff / (1000 * 60 * 60));
-    const mins = Math.floor((msDiff % (1000 * 60 * 60)) / (1000 * 60));
-    return hours > 0 ? `Expires in ${hours}h ${mins}m` : `Expires in ${mins}m`;
   };
 
   const handleToggleRsvp = () => {
@@ -102,10 +96,10 @@ export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded-lg bg-[#051E39] tp-on-navy text-tp-accent border border-[#B39051]/35">
-              {event.category}
+              {getCategoryLabel(event.category)}
             </span>
             <span className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-tp-elevated text-tp-muted border border-tp-line">
-              {calculateHoursLeft(event.expiresAt)}
+              {eventTimeLabel(event)}
             </span>
           </div>
           <button

@@ -1,8 +1,10 @@
 import React from 'react';
 import { Clock, MapPin, Users, Sparkles, Check, ChevronRight, AlertTriangle } from 'lucide-react';
 import { ScoredEventItem } from './types';
+import { eventTimeLabel } from './eventTime';
 import { UserProfile } from '../../shared/contracts';
 import { Repository } from '../../shared/data/repository';
+import { getCategoryLabel } from '../../shared/ui/categoryIcons';
 
 interface EventListViewProps {
   events: ScoredEventItem[];
@@ -21,14 +23,6 @@ export const EventListView: React.FC<EventListViewProps> = ({
   onSelectEvent,
   onRsvpSuccess,
 }) => {
-  const calculateHoursLeft = (expiresAt: number) => {
-    const msDiff = expiresAt - Date.now();
-    if (msDiff <= 0) return 'Expired';
-    const hours = Math.floor(msDiff / (1000 * 60 * 60));
-    const mins = Math.floor((msDiff % (1000 * 60 * 60)) / (1000 * 60));
-    return hours > 0 ? `Expires in ${hours}h ${mins}m` : `Expires in ${mins}m`;
-  };
-
   const handleQuickRsvp = (e: React.MouseEvent, event: ScoredEventItem) => {
     e.stopPropagation();
     const isAttending = event.attendees.includes(currentUser.id);
@@ -120,11 +114,11 @@ export const EventListView: React.FC<EventListViewProps> = ({
                   {/* Top Bar: Category & TTL */}
                   <div className="flex items-center justify-between text-xs mb-2">
                     <span className="font-bold text-tp-accent uppercase tracking-wider text-[11px]">
-                      {event.category}
+                      {getCategoryLabel(event.category)}
                     </span>
                     <span className="text-tp-subtle font-medium text-[11px] flex items-center gap-1">
                       <Clock className="w-3 h-3 text-tp-accent" />
-                      <span>{calculateHoursLeft(event.expiresAt)}</span>
+                      <span data-testid="event-time-label">{eventTimeLabel(event)}</span>
                     </span>
                   </div>
 

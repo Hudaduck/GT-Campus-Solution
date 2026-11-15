@@ -23,3 +23,16 @@ export const CATEGORY_ICONS: Record<string, LucideIcon> = {
 };
 
 export const getCategoryIcon = (category: string): LucideIcon => CATEGORY_ICONS[category] ?? LayoutGrid;
+
+// Display names for the category ids stored on events (ids stay stable; only labels change)
+export const CATEGORY_LABELS: Record<string, string> = {
+  coffee: 'Casual',
+  tech: 'Tech & Code',
+  startup: 'AI & Startups',
+  sports: 'Sports',
+  study: 'Study Cram',
+  social: 'Social & Games',
+  networking: 'Networking',
+};
+
+export const getCategoryLabel = (category: string): string => CATEGORY_LABELS[category] ?? category;

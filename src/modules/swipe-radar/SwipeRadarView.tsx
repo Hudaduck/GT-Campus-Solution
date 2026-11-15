@@ -77,10 +77,17 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
   const [isSchedulerOpen, setIsSchedulerOpen] = useState<boolean>(false);
 
   // Load profiles and currentUser from Repository
+  // People you've already connected with leave the deck (snapshotted on load, so connecting
+  // during a session doesn't shift the card index; they're gone next time the deck loads)
   const loadData = () => {
     const user = Repository.getCurrentUser();
     setCurrentUser(user);
-    const allProfiles = Repository.getProfiles().filter((p) => !isSamePerson(p, user));
+    const connected = new Set(
+      Repository.getMatches()
+        .filter((m) => m.user1Id === user.id || m.user2Id === user.id)
+        .map((m) => (m.user1Id === user.id ? m.user2Id : m.user1Id))
+    );
+    const allProfiles = Repository.getProfiles().filter((p) => !isSamePerson(p, user) && !connected.has(p.id));
     setProfiles(allProfiles);
   };
 
@@ -128,15 +135,16 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
       currentUser.hobbies.some((myH) => myH.toLowerCase() === h.toLowerCase())
     );
 
-    // Save match to repository
-    const matchId = `match_${Date.now()}`;
+    // Save match to repository (connecting with someone you already matched reuses that match)
+    const existingMatch = Repository.findMatchWith(currentUser.id, candidate.id);
+    const matchId = existingMatch?.id ?? `match_${Date.now()}`;
     const newMatch: MatchItem = {
       id: matchId,
       user1Id: currentUser.id,
       user2Id: candidate.id,
       partnerProfile: candidate,
-      matchedAt: Date.now(),
-      status: 'matched',
+      matchedAt: existingMatch?.matchedAt ?? Date.now(),
+      status: existingMatch?.status ?? 'matched',
       sharedHobbies: candidateShared,
       mutualIntent: candidate.intent,
     };

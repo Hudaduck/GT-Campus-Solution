@@ -147,17 +147,12 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
     // Save to repository
     Repository.saveScheduledMeetup(newMeetup);
 
-    // Update match status to 'scheduled' if match exists
-    const matches = Repository.getMatches();
-    const existingMatch = matches.find(
-      (m) =>
-        (m.user1Id === partner.id && m.user2Id === currentUser.id) ||
-        (m.user2Id === partner.id && m.user1Id === currentUser.id) ||
-        m.id === matchId
-    );
+    // Update match status to 'scheduled' if match exists (one match per pair)
+    const existingMatch =
+      Repository.findMatchWith(currentUser.id, partner.id) ||
+      (matchId ? Repository.getMatches().find((m) => m.id === matchId) : undefined);
     if (existingMatch) {
-      existingMatch.status = 'scheduled';
-      Repository.saveMatch(existingMatch);
+      Repository.saveMatch({ ...existingMatch, status: 'scheduled' });
     }
 
     setScheduledMeetup(newMeetup);
