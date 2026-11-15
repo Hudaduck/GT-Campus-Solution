@@ -4,6 +4,7 @@ import { useBrand } from '../shared/config/brandConfig';
 import { BrandMark } from '../shared/ui/BrandMark';
 import { useAuth, DemoRoleSwitcher } from '../modules/auth';
 import { ModuleOutlet, AppTab } from './ModuleOutlet';
+import { useUnreadCount, unreadBadgeClass } from '../shared/ui/useUnreadCount';
 
 interface PhoneShellProps {
   activeTab: AppTab;
@@ -27,6 +28,7 @@ export const PhoneShell: React.FC<PhoneShellProps> = ({
 }) => {
   const { brand } = useBrand();
   const { user } = useAuth();
+  const unread = useUnreadCount();
 
   return (
     <div data-testid="phone-shell" className="tp-phone-shell relative flex flex-col bg-[#051E39] text-tp-ink overflow-hidden">
@@ -75,6 +77,7 @@ export const PhoneShell: React.FC<PhoneShellProps> = ({
       >
         {TABS.map(({ id, label, Icon }) => {
           const active = activeTab === id;
+          const badge = id === 'plans' ? unread : 0;
           return (
             <button
               key={id}
@@ -85,11 +88,16 @@ export const PhoneShell: React.FC<PhoneShellProps> = ({
               className="flex flex-col items-center justify-center gap-0.5 min-w-[72px] min-h-[48px]"
             >
               <span
-                className={`flex items-center justify-center w-14 h-8 rounded-full transition-colors ${
+                className={`relative flex items-center justify-center w-14 h-8 rounded-full transition-colors ${
                   active ? 'bg-[#B39051] text-[#051E39]' : 'text-tp-muted'
                 }`}
               >
                 <Icon className="w-5 h-5" />
+                {badge > 0 && (
+                  <span data-testid="plans-unread-badge" aria-label={`${badge} unread messages`} className={`absolute -top-1 right-1.5 ${unreadBadgeClass}`}>
+                    {badge}
+                  </span>
+                )}
               </span>
               <span className={`text-[11px] ${active ? 'text-tp-accent font-bold' : 'text-tp-muted font-medium'}`}>
                 {label}

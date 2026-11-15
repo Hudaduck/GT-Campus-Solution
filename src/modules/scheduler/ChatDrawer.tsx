@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X, Send, MapPin, Video, MessageCircle } from 'lucide-react';
+import { X, Send, MapPin, Video, MessageCircle, CalendarCheck, CalendarPlus } from 'lucide-react';
 import { UserProfile, ChatMessage, CalendarMeetup, MeetingFormat } from '../../shared/contracts';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { Repository, getSharedHobbies } from '../../shared/data/repository';
 import { SchedulerDrawer } from './SchedulerDrawer';
+import { formatDuration } from './calendarUtils';
 
 interface ChatDrawerProps {
   isOpen: boolean;
@@ -39,9 +40,28 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, partner
   const [draft, setDraft] = useState('');
   const [now, setNow] = useState(() => Date.now());
   const [planFormat, setPlanFormat] = useState<MeetingFormat | null>(null);
+  const [booked, setBooked] = useState<CalendarMeetup | null>(null);
+  const [rescheduling, setRescheduling] = useState(false);
+  const [cancelArmed, setCancelArmed] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const reload = useCallback((id: string) => setMessages(Repository.getMessages(id)), []);
+  // Thread + this viewer's booked meetup with this partner (if any)
+  const reload = useCallback(
+    (id: string) => {
+      setMessages(Repository.getMessages(id));
+      if (partner) {
+        const me = Repository.getCurrentUser();
+        setBooked(Repository.getMeetupsFor(me).find((m) => m.partnerId === partner.id) ?? null);
+      }
+    },
+    [partner]
+  );
+
+  useEffect(() => {
+    if (!cancelArmed) return;
+    const t = window.setTimeout(() => setCancelArmed(false), 4000);
+    return () => window.clearTimeout(t);
+  }, [cancelArmed]);
 
   // Resolve (or create) the match thread whenever the drawer opens for a partner
   useEffect(() => {
@@ -52,6 +72,8 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, partner
     setMatchId(match.id);
     setDraft('');
     setPlanFormat(null);
+    setRescheduling(false);
+    setCancelArmed(false);
     setNow(Date.now());
     reload(match.id);
   }, [isOpen, partner, reload]);
@@ -86,17 +108,24 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, partner
     if (el) el.scrollTop = el.scrollHeight;
   }, [visible.length, hasPending]);
 
+  // Everything visible in an open thread counts as read (drives the inbox's unread dots)
+  useEffect(() => {
+    if (isOpen && matchId) Repository.markThreadRead(matchId, viewer.id, now);
+  }, [isOpen, matchId, viewer.id, visible.length, now]);
+
   if (!isOpen || !partner) return null;
 
-  if (planFormat) {
+  if (planFormat || rescheduling) {
     return (
       <SchedulerDrawer
         isOpen
         partner={partner}
         matchId={matchId ?? undefined}
-        initialFormat={planFormat}
+        initialFormat={planFormat ?? 'in-person'}
+        existingMeetup={rescheduling ? booked : null}
         onClose={() => {
           setPlanFormat(null);
+          setRescheduling(false);
           setNow(Date.now());
           if (matchId) reload(matchId);
         }}
@@ -104,6 +133,18 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, partner
       />
     );
   }
+
+  const cancelBooked = () => {
+    if (!booked) return;
+    if (!cancelArmed) {
+      setCancelArmed(true);
+      return;
+    }
+    Repository.cancelMeetup(booked.id, viewer);
+    setCancelArmed(false);
+    setNow(Date.now());
+    if (matchId) reload(matchId);
+  };
 
   const send = (text: string) => {
     // The thread id is resolved in an effect after first paint; if someone sends before it
@@ -205,8 +246,64 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, partner
           )}
         </div>
 
-        {/* Plan a meetup */}
-        <div className="px-4 pt-2 pb-1 border-t border-[#B39051]/25">
+        {/* Booked: show the plan with Reschedule / Cancel. Otherwise: plan a meetup. */}
+        {booked ? (
+          <div data-testid="chat-booked" className="px-4 pt-2 pb-1 border-t border-[#B39051]/25">
+            <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-tp-elevated border border-[#B39051]/40">
+              <CalendarCheck className="w-4 h-4 text-tp-accent shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1 text-xs">
+                <p className="font-bold text-tp-ink">
+                  Booked ·{' '}
+                  {new Date(booked.scheduledTime).toLocaleString([], {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}{' '}
+                  · {formatDuration(booked.durationMinutes)}
+                </p>
+                <p className="text-tp-muted truncate">
+                  {booked.format === 'online' ? `Online · ${booked.locationName}` : booked.locationName}
+                </p>
+                {booked.googleCalendarUrl && (
+                  <a
+                    href={booked.googleCalendarUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] text-tp-accent underline mt-0.5"
+                  >
+                    <CalendarPlus className="w-3 h-3" />
+                    Google Calendar
+                  </a>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <button
+                type="button"
+                data-testid="chat-reschedule"
+                onClick={() => setRescheduling(true)}
+                className="py-2 rounded-xl border border-[#B39051]/50 bg-tp-canvas/60 text-tp-ink text-xs font-semibold hover:border-[#B39051] transition"
+              >
+                Reschedule
+              </button>
+              <button
+                type="button"
+                data-testid="chat-cancel-meetup"
+                onClick={cancelBooked}
+                className={`py-2 rounded-xl border text-xs font-semibold transition ${
+                  cancelArmed
+                    ? 'bg-red-500 border-red-500 text-white'
+                    : 'border-red-500/40 text-red-400 hover:bg-red-500/10'
+                }`}
+              >
+                {cancelArmed ? 'Tap again to cancel' : 'Cancel meetup'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="px-4 pt-2 pb-1 border-t border-[#B39051]/25">
           <p className="text-[10px] uppercase tracking-wider font-bold text-tp-subtle mb-1.5">Ready to meet?</p>
           {!canSchedule && (
             <p data-testid="schedule-locked-hint" className="text-[11px] text-tp-muted mb-1.5">
@@ -237,6 +334,7 @@ export const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, partner
             </button>
           </div>
         </div>
+        )}
 
         {/* Composer */}
         <form

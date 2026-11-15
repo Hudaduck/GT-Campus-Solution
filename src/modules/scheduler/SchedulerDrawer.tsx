@@ -11,8 +11,9 @@ import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { Repository, MIDPOINT_COFFEE_SPOTS, sanitizeMeetingLink } from '../../shared/data/repository';
 import { generateIcsFile, generateGoogleCalendarUrl, downloadIcsFile, formatDuration } from './calendarUtils';
 
-// Meeting lengths (minutes): from a quick coffee to a long working session
-export const DURATION_OPTIONS = [30, 45, 60, 90, 120, 180];
+const DEFAULT_LENGTH_MIN = 45;
+const MAX_LENGTH_MIN = 8 * 60;
+const addMinutes = (d: Date, min: number) => new Date(d.getTime() + min * 60 * 1000);
 import { intentLabels } from '../../shared/intents';
 import { defaultStart, fromInputs, startError, toDateInput, toTimeInput } from '../../shared/schedule';
 
@@ -26,6 +27,8 @@ interface SchedulerDrawerProps {
   onScheduled?: (meetup: CalendarMeetup) => void;
   initialSpot?: CoffeeSpotSuggestion;
   initialFormat?: MeetingFormat;
+  /** Reschedule: pre-fill from this meetup and replace it on confirm */
+  existingMeetup?: CalendarMeetup | null;
 }
 
 const formatWhen = (iso: string) =>
@@ -45,7 +48,9 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
   onScheduled,
   initialSpot,
   initialFormat = 'in-person',
+  existingMeetup = null,
 }) => {
+  const isReschedule = !!existingMeetup;
   const [format, setFormat] = useState<MeetingFormat>(initialFormat);
   const [platform, setPlatform] = useState<OnlinePlatform>('Google Meet');
   const [meetingLinkInput, setMeetingLinkInput] = useState<string>('');
@@ -55,10 +60,10 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
   const [selectedSpot, setSelectedSpot] = useState<CoffeeSpotSuggestion>(
     initialSpot || MIDPOINT_COFFEE_SPOTS[0]
   );
-  const [selectedDuration, setSelectedDuration] = useState<number>(45); // in minutes
   // Plain date + time (default ~2h out, 9 AM-8 PM); availability is agreed in chat first
   const [startDate, setStartDate] = useState<string>(() => toDateInput(defaultStart()));
   const [startClock, setStartClock] = useState<string>(() => toTimeInput(defaultStart()));
+  const [endClock, setEndClock] = useState<string>(() => toTimeInput(addMinutes(defaultStart(), DEFAULT_LENGTH_MIN)));
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [scheduledMeetup, setScheduledMeetup] = useState<CalendarMeetup | null>(null);
 
@@ -72,23 +77,67 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
       setUseCustomSpot(false);
       setCustomName('');
       setCustomAddress('');
+      if (existingMeetup) {
+        // Reschedule: start from the current plan
+        const start = new Date(existingMeetup.scheduledTime);
+        setStartDate(toDateInput(start));
+        setStartClock(toTimeInput(start));
+        setEndClock(toTimeInput(addMinutes(start, existingMeetup.durationMinutes)));
+        setFormat(existingMeetup.format ?? 'in-person');
+        if (existingMeetup.format === 'online') {
+          if (existingMeetup.onlinePlatform) setPlatform(existingMeetup.onlinePlatform);
+          setMeetingLinkInput(existingMeetup.meetingLink ?? '');
+        } else {
+          const spot = MIDPOINT_COFFEE_SPOTS.find((x) => x.name === existingMeetup.locationName);
+          if (spot) {
+            setSelectedSpot(spot);
+          } else {
+            setUseCustomSpot(true);
+            setCustomName(existingMeetup.locationName === existingMeetup.locationAddress ? '' : existingMeetup.locationName);
+            setCustomAddress(existingMeetup.locationAddress);
+          }
+        }
+        return;
+      }
       const start = defaultStart();
       setStartDate(toDateInput(start));
       setStartClock(toTimeInput(start));
+      setEndClock(toTimeInput(addMinutes(start, DEFAULT_LENGTH_MIN)));
       if (initialSpot) {
         setSelectedSpot(initialSpot);
       } else {
         setSelectedSpot(MIDPOINT_COFFEE_SPOTS[0]);
       }
     }
-  }, [isOpen, initialSpot, initialFormat]);
+  }, [isOpen, initialSpot, initialFormat, existingMeetup]);
 
   if (!isOpen || !partner) return null;
 
   const currentUser = Repository.getCurrentUser();
   const startAt = fromInputs(startDate, startClock);
-  const timeError = startError(startAt);
+  const endAt = fromInputs(startDate, endClock);
+  const lengthMin = Math.round((endAt.getTime() - startAt.getTime()) / 60000);
+  const timeError =
+    startError(startAt) ??
+    (Number.isNaN(endAt.getTime())
+      ? 'Please pick an end time'
+      : lengthMin <= 0
+        ? 'End time must be after the start'
+        : lengthMin > MAX_LENGTH_MIN
+          ? 'Meetups can be up to 8 hours'
+          : null);
+  const selectedDuration = timeError ? DEFAULT_LENGTH_MIN : lengthMin;
   const effectiveMeetupTime = timeError ? '' : startAt.toISOString();
+  const clock = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+  // Moving the start keeps the same length (like a calendar app)
+  const shiftStart = (date: string, time: string) => {
+    const keep = lengthMin > 0 && lengthMin <= MAX_LENGTH_MIN ? lengthMin : DEFAULT_LENGTH_MIN;
+    setStartDate(date);
+    setStartClock(time);
+    const s = fromInputs(date, time);
+    if (!Number.isNaN(s.getTime())) setEndClock(toTimeInput(addMinutes(s, keep)));
+  };
   const today = new Date();
   const maxDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
 
@@ -148,7 +197,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
       (matchId ? Repository.getMatches().find((m) => m.id === matchId) : undefined);
 
     const newMeetup: CalendarMeetup = {
-      id: `meetup_${Date.now()}`,
+      id: existingMeetup?.id ?? `meetup_${Date.now()}`,
       ownerId: currentUser.id,
       matchId: existingMatch?.id || matchId || `match_${currentUser.id}_${partner.id}`,
       partnerId: partner.id,
@@ -185,7 +234,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
       Repository.sendMessage(
         existingMatch.id,
         currentUser,
-        `Scheduled ${where} for ${formatWhen(effectiveMeetupTime)} (${formatDuration(selectedDuration)}).${
+        `${isReschedule ? 'Rescheduled to' : 'Scheduled'} ${where} for ${formatWhen(effectiveMeetupTime)} (${formatDuration(selectedDuration)}).${
           meetingLink ? ` Join here: ${meetingLink}` : ''
         }`
       );
@@ -264,7 +313,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                 {scheduledMeetup.format === 'online' ? <Video className="w-6 h-6" /> : <Coffee className="w-6 h-6" />}
               </div>
               <div>
-                <h4 className="text-lg font-bold text-tp-ink">Meetup Confirmed!</h4>
+                <h4 className="text-lg font-bold text-tp-ink">{isReschedule ? 'Meetup Rescheduled!' : 'Meetup Confirmed!'}</h4>
                 <p className="text-xs text-tp-muted mt-1">
                   Finish adding it in the Google Calendar tab that just opened.
                 </p>
@@ -537,7 +586,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                   </label>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-2">
                   <input
                     type="date"
                     aria-label="Meetup date"
@@ -545,39 +594,34 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                     value={startDate}
                     min={toDateInput(today)}
                     max={toDateInput(maxDate)}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    onChange={(e) => shiftStart(e.target.value, startClock)}
                     className="w-full bg-tp-canvas border border-[#B39051]/35 rounded-xl px-3 py-2 text-xs text-tp-ink focus:outline-none focus:border-[#B39051] [color-scheme:dark]"
                   />
-                  <input
-                    type="time"
-                    aria-label="Meetup start time"
-                    data-testid="meetup-time-input"
-                    value={startClock}
-                    step={900}
-                    onChange={(e) => setStartClock(e.target.value)}
-                    className="w-full bg-tp-canvas border border-[#B39051]/35 rounded-xl px-3 py-2 text-xs text-tp-ink focus:outline-none focus:border-[#B39051] [color-scheme:dark]"
-                  />
-                </div>
-                {/* How long */}
-                <div className="mt-3">
-                  <p id="meetup-duration-label" className="text-[11px] font-semibold text-tp-muted mb-1.5">How long?</p>
-                  <div role="group" aria-labelledby="meetup-duration-label" className="grid grid-cols-6 gap-1.5">
-                    {DURATION_OPTIONS.map((dur) => (
-                      <button
-                        key={dur}
-                        type="button"
-                        data-testid={`meetup-duration-${dur}`}
-                        aria-pressed={selectedDuration === dur}
-                        onClick={() => setSelectedDuration(dur)}
-                        className={`min-h-[34px] rounded-lg text-[11px] font-semibold border transition ${
-                          selectedDuration === dur
-                            ? 'bg-[#B39051] text-[#051E39] border-[#B39051]'
-                            : 'bg-tp-canvas/60 text-tp-muted border-[#B39051]/35 hover:text-tp-ink'
-                        }`}
-                      >
-                        {dur < 60 ? `${dur}m` : `${dur / 60}h`}
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="block text-[11px] font-semibold text-tp-muted mb-1">Starts</span>
+                      <input
+                        type="time"
+                        aria-label="Meetup start time"
+                        data-testid="meetup-time-input"
+                        value={startClock}
+                        step={900}
+                        onChange={(e) => shiftStart(startDate, e.target.value)}
+                        className="w-full bg-tp-canvas border border-[#B39051]/35 rounded-xl px-3 py-2 text-xs text-tp-ink focus:outline-none focus:border-[#B39051] [color-scheme:dark]"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="block text-[11px] font-semibold text-tp-muted mb-1">Ends</span>
+                      <input
+                        type="time"
+                        aria-label="Meetup end time"
+                        data-testid="meetup-end-input"
+                        value={endClock}
+                        step={900}
+                        onChange={(e) => setEndClock(e.target.value)}
+                        className="w-full bg-tp-canvas border border-[#B39051]/35 rounded-xl px-3 py-2 text-xs text-tp-ink focus:outline-none focus:border-[#B39051] [color-scheme:dark]"
+                      />
+                    </label>
                   </div>
                 </div>
 
@@ -585,7 +629,7 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                   <p role="alert" className="text-[11px] text-red-400 mt-1.5">{timeError}</p>
                 ) : (
                   <p data-testid="meetup-time-preview" className="text-[11px] text-tp-subtle mt-1.5">
-                    {formatWhen(effectiveMeetupTime)} · {formatDuration(selectedDuration)}
+                    {formatWhen(effectiveMeetupTime)} – {clock(endAt)} · {formatDuration(selectedDuration)}
                   </p>
                 )}
               </div>
@@ -599,10 +643,12 @@ export const SchedulerDrawer: React.FC<SchedulerDrawerProps> = ({
                   className="w-full py-3 px-4 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-sm tracking-wide hover:bg-[#8F713D] active:bg-[#8F713D] transition shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isOnline ? <Video className="w-4 h-4" /> : <Coffee className="w-4 h-4" />}
-                  <span>Confirm & Add to Google Calendar</span>
+                  <span>{isReschedule ? 'Reschedule & Update Google Calendar' : 'Confirm & Add to Google Calendar'}</span>
                 </button>
                 <p className="text-[11px] text-center text-tp-subtle">
-                  Opens a ready-to-save Google Calendar event with {partner.name.split(' ')[0]} as a guest.
+                  {isReschedule
+                    ? 'Opens the updated event in Google Calendar. Delete the old one there if it was saved.'
+                    : `Opens a ready-to-save Google Calendar event with ${partner.name.split(' ')[0]} as a guest.`}
                 </p>
               </div>
             </>

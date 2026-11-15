@@ -18,6 +18,7 @@ const STORAGE_KEYS = {
   SWIPES: 'thirdplace_swipes_history',
   MEETUPS: 'thirdplace_meetups_data',
   MESSAGES: 'thirdplace_messages_data',
+  CHAT_READ: 'thirdplace_chat_read',
 };
 
 // Simulated partner reply delay (no backend, so the matched person answers the opener once)
@@ -1485,6 +1486,50 @@ export class Repository {
     });
   }
 
+  /**
+   * Cancels a meetup the viewer booked: removes it, puts the match back to pending (so it can be
+   * re-planned), and leaves a note in the chat thread. Returns the removed meetup, if any.
+   */
+  static cancelMeetup(meetupId: string, viewer: UserProfile): CalendarMeetup | undefined {
+    const all = this.getScheduledMeetups();
+    const meetup = all.find((m) => m.id === meetupId);
+    if (!meetup) return undefined;
+    if (this.isSafeStorageAvailable()) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.MEETUPS, JSON.stringify(all.filter((m) => m.id !== meetupId)));
+      } catch (e) {
+        console.warn('Error cancelling meetup:', e);
+      }
+    }
+    const match = this.findMatchWith(viewer.id, meetup.partnerId) ?? this.getMatches().find((m) => m.id === meetup.matchId);
+    if (match) {
+      // saveMatch() never downgrades scheduled -> matched (duplicate protection); cancelling is the one
+      // legitimate downgrade, so set the status directly
+      this.setMatchStatus(match.id, 'matched');
+      const when = new Date(meetup.scheduledTime).toLocaleString([], {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+      this.sendMessage(match.id, viewer, `Cancelled our meetup on ${when}.`);
+    }
+    return meetup;
+  }
+
+  /** Sets a match's status directly (unlike saveMatch, this can move scheduled back to matched). */
+  static setMatchStatus(matchId: string, status: MatchItem['status']): void {
+    const updated = this.getMatches().map((m) => (m.id === matchId ? { ...m, status } : m));
+    if (this.isSafeStorageAvailable()) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.MATCHES, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Error updating match status:', e);
+      }
+    }
+  }
+
   /** Meetups this viewer booked (never one "with themselves" from another persona's data). */
   static getMeetupsFor(viewer: UserProfile): CalendarMeetup[] {
     const matches = this.getMatches();
@@ -1615,6 +1660,57 @@ export class Repository {
     return delivered.some((m) => m.senderId === viewerId) && delivered.some((m) => m.senderId !== viewerId);
   }
 
+  // ---- Inbox: conversations + read state (per viewer, so the demo personas stay separate) ----
+
+  private static readChatRead(): Record<string, number> {
+    if (!this.isSafeStorageAvailable()) return {};
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEYS.CHAT_READ) || '{}');
+    } catch {
+      return {};
+    }
+  }
+
+  /** Marks everything delivered in a thread (up to `at`) as read by this viewer. */
+  static markThreadRead(matchId: string, viewerId: string, at: number = Date.now()): void {
+    const read = this.readChatRead();
+    const key = `${viewerId}|${matchId}`;
+    if ((read[key] ?? 0) >= at) return;
+    read[key] = at;
+    if (this.isSafeStorageAvailable()) {
+      try {
+        localStorage.setItem(STORAGE_KEYS.CHAT_READ, JSON.stringify(read));
+      } catch {
+        // read state is a convenience
+      }
+    }
+  }
+
+  /**
+   * The viewer's conversations (threads with at least one delivered message), newest first,
+   * with the last message and how many of the partner's messages are unread.
+   */
+  static getConversations(
+    viewer: UserProfile,
+    now: number = Date.now()
+  ): { match: MatchItem; partner: UserProfile; last: ChatMessage; unread: number }[] {
+    const read = this.readChatRead();
+    return this.getMatchesFor(viewer)
+      .map((match) => {
+        const delivered = this.getMessages(match.id).filter((m) => m.sentAt <= now);
+        if (delivered.length === 0) return null;
+        const lastRead = read[`${viewer.id}|${match.id}`] ?? 0;
+        const unread = delivered.filter((m) => m.senderId !== viewer.id && m.sentAt > lastRead).length;
+        return { match, partner: match.partnerProfile, last: delivered[delivered.length - 1], unread };
+      })
+      .filter((c): c is NonNullable<typeof c> => c !== null)
+      .sort((a, b) => b.last.sentAt - a.last.sentAt);
+  }
+
+  static getUnreadCount(viewer: UserProfile, now: number = Date.now()): number {
+    return this.getConversations(viewer, now).reduce((n, c) => n + c.unread, 0);
+  }
+
   /**
    * Appends a message. When the viewer sends their first message in a thread and a
    * `replyFrom` partner is given, a simulated reply is queued DEMO_REPLY_DELAY_MS later.
@@ -1698,6 +1794,7 @@ export class Repository {
         localStorage.removeItem(STORAGE_KEYS.SWIPES);
         localStorage.removeItem(STORAGE_KEYS.MEETUPS);
         localStorage.removeItem(STORAGE_KEYS.MESSAGES);
+        localStorage.removeItem(STORAGE_KEYS.CHAT_READ);
         // Fresh seed times relative to *now* (INITIAL_EVENTS is stamped once at module load)
         localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(buildInitialEvents(Date.now())));
         localStorage.setItem(STORAGE_KEYS.PROFILES, JSON.stringify(INITIAL_PROFILES));

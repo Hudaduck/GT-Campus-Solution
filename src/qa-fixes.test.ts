@@ -280,7 +280,13 @@ describe('Scheduling opens Google Calendar (no .ics download) and allows long me
     (URL as unknown as { createObjectURL: unknown }).createObjectURL = createUrl;
 
     render(React.createElement(SchedulerDrawer, { isOpen: true, onClose: () => {}, partner: alex }));
-    fireEvent.click(screen.getByTestId('meetup-duration-90'));
+    // 90 minutes: set the end time 1.5h after the start
+    const startValue = (screen.getByTestId('meetup-time-input') as HTMLInputElement).value;
+    const [h, m] = startValue.split(':').map(Number);
+    const endMin = h * 60 + m + 90;
+    fireEvent.change(screen.getByTestId('meetup-end-input'), {
+      target: { value: `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}` },
+    });
     fireEvent.click(screen.getByText(/Confirm & Add to Google Calendar/i));
 
     expect(open).toHaveBeenCalledTimes(1);
@@ -298,13 +304,17 @@ describe('Scheduling opens Google Calendar (no .ics download) and allows long me
     expect(Repository.getScheduledMeetups()[0].durationMinutes).toBe(90);
   });
 
-  it('offers meetings up to 3 hours and shows friendly lengths', () => {
+  it('length comes from Starts/Ends fields (no length buttons), keeps length when the start moves, and validates', () => {
     render(React.createElement(SchedulerDrawer, { isOpen: true, onClose: () => {}, partner: alex }));
-    for (const m of [30, 45, 60, 90, 120, 180]) expect(screen.getByTestId(`meetup-duration-${m}`)).toBeDefined();
-    fireEvent.click(screen.getByTestId('meetup-duration-180'));
+    expect(screen.queryByTestId('meetup-duration-30')).toBeNull();
+    fireEvent.change(screen.getByTestId('meetup-time-input'), { target: { value: '13:00' } });
+    // default length is 45 min, so the end follows the start
+    expect((screen.getByTestId('meetup-end-input') as HTMLInputElement).value).toBe('13:45');
+    fireEvent.change(screen.getByTestId('meetup-end-input'), { target: { value: '16:00' } });
     expect(screen.getByTestId('meetup-time-preview').textContent).toContain('3 hr');
+    fireEvent.change(screen.getByTestId('meetup-end-input'), { target: { value: '12:00' } });
+    expect(screen.getByRole('alert').textContent).toBe('End time must be after the start');
     expect(formatDuration(45)).toBe('45 min');
     expect(formatDuration(90)).toBe('1.5 hr');
-    expect(formatDuration(120)).toBe('2 hr');
   });
 });

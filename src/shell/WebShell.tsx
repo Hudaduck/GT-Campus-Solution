@@ -6,6 +6,7 @@ import { useAuth, DemoRoleSwitcher } from '../modules/auth';
 import { ModuleOutlet, AppTab } from './ModuleOutlet';
 import { ViewModeToggle } from './ViewModeToggle';
 import { ResetDemoButton } from '../shared/ui/ResetDemoButton';
+import { useUnreadCount, unreadBadgeClass } from '../shared/ui/useUnreadCount';
 import { PresenterView } from './useViewMode';
 
 interface WebShellProps {
@@ -32,6 +33,7 @@ export const WebShell: React.FC<WebShellProps> = ({
 }) => {
   const { brand, isDarkMode, toggleDarkMode } = useBrand();
   const { user } = useAuth();
+  const unread = useUnreadCount();
   const current = NAV.find((n) => n.id === activeTab)!;
 
   return (
@@ -51,6 +53,7 @@ export const WebShell: React.FC<WebShellProps> = ({
         <nav aria-label="Primary" className="flex-1 px-3 py-4 space-y-1">
           {NAV.map(({ id, label, subtitle, Icon }) => {
             const active = activeTab === id;
+            const badge = id === 'plans' ? unread : 0;
             return (
               <button
                 key={id}
@@ -65,8 +68,15 @@ export const WebShell: React.FC<WebShellProps> = ({
                 }`}
               >
                 <Icon className="w-5 h-5 shrink-0" />
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold">{label}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2 text-sm font-bold">
+                    {label}
+                    {badge > 0 && (
+                      <span data-testid="plans-unread-badge" aria-label={`${badge} unread messages`} className={unreadBadgeClass}>
+                        {badge}
+                      </span>
+                    )}
+                  </span>
                   <span className={`block text-[11px] truncate ${active ? 'text-[#051E39]/80' : 'text-tp-subtle'}`}>
                     {subtitle}
                   </span>

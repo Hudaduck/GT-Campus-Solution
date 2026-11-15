@@ -128,7 +128,7 @@ describe('Scheduler Module - UI Components', () => {
 
     // Pending 1-on-1 Matches section displays match; without a chat only messaging is offered
     expect(getByText('Alex Chen')).toBeDefined();
-    expect(getByRole('button', { name: /Message/i })).toBeDefined();
+    expect(getByRole('button', { name: /^Message$/ })).toBeDefined();
     expect(queryByRole('button', { name: /Schedule/i })).toBeNull();
     expect(getByText('Chat first to plan a meetup')).toBeDefined();
   });

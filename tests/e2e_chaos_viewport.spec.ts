@@ -200,7 +200,12 @@ test.describe('Suite 3: E2E Core User Flows', () => {
     await page.getByLabel(/^Address/).fill('400 Park Dr NE, Atlanta, GA');
 
     // A 2-hour meetup; Confirm opens Google Calendar with the right length
-    await page.locator('[data-testid="meetup-duration-120"]').click();
+    const startValue = await page.locator('[data-testid="meetup-time-input"]').inputValue();
+    const [sh, sm] = startValue.split(':').map(Number);
+    const endMin = sh * 60 + sm + 120;
+    await page
+      .locator('[data-testid="meetup-end-input"]')
+      .fill(`${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`);
     const gcalUrl = await captureGoogleCalendar(page, () => confirmBtn.click());
     const [start, end] = gcalUrl.searchParams.get('dates')!.split('/');
     const toMs = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +d.slice(9, 11), +d.slice(11, 13));

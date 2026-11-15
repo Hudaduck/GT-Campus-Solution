@@ -77,6 +77,13 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
 
   // TTL Toggle Modal / state
   const [showTtlModal, setShowTtlModal] = useState<boolean>(false);
+  // "Passed on Alex · Undo" for a few seconds after each Pass
+  const [lastPass, setLastPass] = useState<{ index: number; name: string } | null>(null);
+  useEffect(() => {
+    if (!lastPass) return;
+    const t = window.setTimeout(() => setLastPass(null), 5000);
+    return () => window.clearTimeout(t);
+  }, [lastPass]);
 
   // Match Modal state
   const [matchedProfile, setMatchedProfile] = useState<UserProfile | null>(null);
@@ -152,8 +159,17 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
   // Handle Swipe Actions
   const handlePass = () => {
     if (currentIndex < filteredProfiles.length) {
+      const passed = filteredProfiles[currentIndex];
+      if (passed) setLastPass({ index: currentIndex, name: passed.name.split(' ')[0] });
       setCurrentIndex((prev) => prev + 1);
     }
+  };
+
+  // Undo the last Pass: bring that person back to the top of the deck
+  const undoPass = () => {
+    if (!lastPass) return;
+    setCurrentIndex(lastPass.index);
+    setLastPass(null);
   };
 
   const handleConnect = (candidate: UserProfile, _isSuper = false) => {
@@ -399,6 +415,20 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
               <ChevronDown aria-hidden="true" className="w-4 h-4 shrink-0 pointer-events-none" />
             </label>
           </div>
+
+          {/* Undo the last Pass (a mis-tap shouldn't lose someone) */}
+          {lastPass && (
+            <div
+              role="status"
+              data-testid="undo-pass"
+              className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#051E39] tp-on-navy border border-[#B39051]/60 text-xs"
+            >
+              <span className="text-tp-ink">Passed on {lastPass.name}</span>
+              <button type="button" onClick={undoPass} className="font-bold text-tp-accent underline">
+                Undo
+              </button>
+            </div>
+          )}
 
           {/* Small deck? Say why (intents / radius); widening is in the dropdown + location chip above */}
           {filteredProfiles.length > 0 && filteredProfiles.length < 5 && (intentFilter === 'for-you' || locationPref.radiusMiles !== null) && (

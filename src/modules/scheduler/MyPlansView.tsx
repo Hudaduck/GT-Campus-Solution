@@ -23,7 +23,22 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
   const [events, setEvents] = useState<EventItem[]>([]);
   const [matches, setMatches] = useState<MatchItem[]>([]);
   const [meetups, setMeetups] = useState<CalendarMeetup[]>([]);
-  const [activeTab, setActiveTab] = useState<'all' | 'meetups' | 'events' | 'matches'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'meetups' | 'events' | 'matches' | 'messages'>('all');
+  const [rescheduleMeetup, setRescheduleMeetup] = useState<CalendarMeetup | null>(null);
+  const [cancelArmedId, setCancelArmedId] = useState<string | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  // Keep the inbox fresh (simulated replies "arrive" a moment after sending)
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick(Date.now()), 2000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!cancelArmedId) return;
+    const t = window.setTimeout(() => setCancelArmedId(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [cancelArmedId]);
 
   // Scheduler Drawer state for rescheduling or scheduling from match
   const [schedulerPartner, setSchedulerPartner] = useState<UserProfile | null>(null);
@@ -80,18 +95,33 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
     downloadIcsFile(`GT-Event-${event.title.replace(/\s+/g, '_')}.ics`, icsContent);
   };
 
-  // Handle Meetup cancellation
+  // Cancel a meetup: first tap arms it, second tap cancels (and leaves a note in the chat)
   const handleCancelMeetup = (meetupId: string) => {
-    const currentMeetups = Repository.getScheduledMeetups();
-    const updated = currentMeetups.filter((m) => m.id !== meetupId);
-    if (typeof window !== 'undefined' && 'localStorage' in window) {
-      localStorage.setItem('thirdplace_meetups_data', JSON.stringify(updated));
+    if (cancelArmedId !== meetupId) {
+      setCancelArmedId(meetupId);
+      return;
     }
+    Repository.cancelMeetup(meetupId, currentUser);
+    setCancelArmedId(null);
     loadData();
+  };
+
+  const partnerFor = (meetup: CalendarMeetup): UserProfile | undefined =>
+    matches.find((m) => m.id === meetup.matchId)?.partnerProfile ??
+    Repository.getProfiles().find((p) => p.id === meetup.partnerId);
+
+  const openReschedule = (meetup: CalendarMeetup) => {
+    const partner = partnerFor(meetup);
+    if (!partner) return;
+    setRescheduleMeetup(meetup);
+    setSchedulerPartner(partner);
+    setSchedulerMatchId(meetup.matchId);
+    setIsSchedulerOpen(true);
   };
 
   // Open scheduler for a match
   const handleScheduleFromMatch = (match: MatchItem) => {
+    setRescheduleMeetup(null);
     setSchedulerPartner(match.partnerProfile);
     setSchedulerMatchId(match.id);
     setIsSchedulerOpen(true);
@@ -100,6 +130,10 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
   // Someone you already have a meetup with isn't "pending" anymore
   const scheduledPartners = new Set(meetups.map((m) => m.partnerId));
   const pendingMatches = matches.filter((m) => m.status === 'matched' && !scheduledPartners.has(m.partnerProfile.id));
+
+  // Inbox: this viewer's conversations, newest first
+  const conversations = Repository.getConversations(currentUser, nowTick);
+  const unreadTotal = conversations.reduce((n, c) => n + c.unread, 0);
 
   // Web "All" view is a two-column dashboard: 1-on-1s + matches left, event RSVPs right
   const isDashboard = layout === 'web' && activeTab === 'all';
@@ -168,6 +202,25 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
             }`}
           >
             Matches ({pendingMatches.length})
+          </button>
+          <button
+            data-testid="plans-tab-messages"
+            onClick={() => setActiveTab('messages')}
+            className={`relative px-3 min-h-[36px] whitespace-nowrap rounded-lg text-xs font-semibold transition ${
+              activeTab === 'messages'
+                ? 'bg-[#B39051] text-[#051E39]'
+                : 'text-tp-muted hover:text-tp-ink'
+            }`}
+          >
+            Messages ({conversations.length})
+            {unreadTotal > 0 && (
+              <span
+                aria-label={`${unreadTotal} unread`}
+                className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold"
+              >
+                {unreadTotal}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -273,49 +326,60 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                   </div>
 
                   {/* Actions */}
-                  <div className="mt-4 pt-3 border-t border-[#B39051]/35 flex items-center gap-2">
-                    {(() => {
-                      const partner = matches.find((m) => m.id === meetup.matchId)?.partnerProfile;
-                      return partner ? (
+                  <div className="mt-4 pt-3 border-t border-[#B39051]/35 space-y-2">
+                    <div className="flex items-center gap-2">
+                      {partnerFor(meetup) && (
                         <button
-                          onClick={() => setChatPartner(partner)}
+                          onClick={() => setChatPartner(partnerFor(meetup)!)}
                           aria-label={`Message ${meetup.partnerName}`}
                           className="py-1.5 px-2.5 rounded-lg border border-[#B39051]/50 text-tp-accent text-xs hover:bg-tp-elevated transition"
                         >
                           <MessageCircle className="w-3.5 h-3.5" />
                         </button>
-                      ) : null;
-                    })()}
-                    {meetup.icsContent && (
+                      )}
                       <button
-                        onClick={() =>
-                          downloadIcsFile(
-                            `ThirdPlace-${meetup.partnerName.replace(/\s+/g, '_')}.ics`,
-                            meetup.icsContent!
-                          )
-                        }
-                        className="flex-1 py-1.5 px-2.5 rounded-lg border border-[#B39051]/50 bg-[#051E39] tp-on-navy text-tp-ink font-semibold text-xs hover:bg-tp-elevated transition text-center"
+                        data-testid="meetup-reschedule"
+                        onClick={() => openReschedule(meetup)}
+                        className="flex-1 py-1.5 px-2.5 rounded-lg border border-[#B39051]/50 text-tp-ink font-semibold text-xs hover:bg-tp-elevated transition text-center"
                       >
-                        <Download className="inline w-3 h-3 mr-1 -mt-0.5" />.ics
+                        Reschedule
                       </button>
-                    )}
-                    {meetup.googleCalendarUrl && (
-                      <a
-                        href={meetup.googleCalendarUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 py-1.5 px-2.5 rounded-lg bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition text-center"
+                      {meetup.googleCalendarUrl && (
+                        <a
+                          href={meetup.googleCalendarUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 py-1.5 px-2.5 rounded-lg bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition text-center"
+                        >
+                          Google Cal
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      {meetup.icsContent ? (
+                        <button
+                          onClick={() =>
+                            downloadIcsFile(`ThirdPlace-${meetup.partnerName.replace(/\s+/g, '_')}.ics`, meetup.icsContent!)
+                          }
+                          className="text-tp-subtle hover:text-tp-ink underline"
+                        >
+                          <Download className="inline w-3 h-3 mr-1 -mt-0.5" />.ics
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                      <button
+                        data-testid="meetup-cancel"
+                        onClick={() => handleCancelMeetup(meetup.id)}
+                        className={`px-2 py-1 rounded-lg font-semibold transition ${
+                          cancelArmedId === meetup.id
+                            ? 'bg-red-500 text-white'
+                            : 'text-tp-subtle hover:text-red-400'
+                        }`}
                       >
-                        Google Cal
-                      </a>
-                    )}
-                    <button
-                      onClick={() => handleCancelMeetup(meetup.id)}
-                      className="text-tp-subtle hover:text-red-400 text-xs px-2 py-1.5"
-                      title="Cancel Meetup"
-                    >
-                      Cancel
-                    </button>
+                        {cancelArmedId === meetup.id ? 'Tap again to cancel' : 'Cancel meetup'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -441,6 +505,57 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
         </section>
       )}
 
+      {/* Messages: conversations with unread dots */}
+      {activeTab === 'messages' && (
+        <section data-testid="inbox" className="space-y-2">
+          {conversations.length === 0 ? (
+            <div className="p-6 bg-tp-surface/80 rounded-2xl border border-dashed border-[#B39051]/35 text-center space-y-2">
+              <p className="text-sm text-tp-muted">No conversations yet.</p>
+              <p className="text-xs text-tp-subtle">Match with someone in Connect 1-on-1 and say hi.</p>
+            </div>
+          ) : (
+            conversations.map(({ match, partner, last, unread }) => (
+              <button
+                key={match.id}
+                type="button"
+                data-testid="inbox-row"
+                onClick={() => setChatPartner(partner)}
+                className="w-full flex items-center gap-3 p-3 rounded-2xl bg-tp-surface border border-[#B39051]/35 hover:border-[#B39051]/70 transition text-left"
+              >
+                <img
+                  src={partner.avatarUrl}
+                  alt={partner.name}
+                  className="w-11 h-11 rounded-full object-cover border-2 border-[#B39051] shrink-0"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className={`text-sm truncate ${unread ? 'font-black text-tp-ink' : 'font-bold text-tp-ink'}`}>
+                      {partner.name}
+                    </span>
+                    <span className="text-[10px] text-tp-subtle shrink-0">
+                      {new Date(last.sentAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </span>
+                  </span>
+                  <span className={`block text-xs truncate ${unread ? 'text-tp-ink' : 'text-tp-muted'}`}>
+                    {last.senderId === currentUser.id ? 'You: ' : ''}
+                    {last.text}
+                  </span>
+                </span>
+                {unread > 0 && (
+                  <span
+                    data-testid="inbox-unread"
+                    aria-label={`${unread} unread`}
+                    className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center"
+                  >
+                    {unread}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </section>
+      )}
+
       {/* 3a. Matches tab with nothing pending: explain and point to Connect */}
       {activeTab === 'matches' && pendingMatches.length === 0 && (
         <div
@@ -552,9 +667,14 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
       {/* Scheduler Drawer */}
       <SchedulerDrawer
         isOpen={isSchedulerOpen}
-        onClose={() => setIsSchedulerOpen(false)}
+        onClose={() => {
+          setIsSchedulerOpen(false);
+          setRescheduleMeetup(null);
+          loadData();
+        }}
         partner={schedulerPartner}
         matchId={schedulerMatchId}
+        existingMeetup={rescheduleMeetup}
         onScheduled={() => {
           loadData();
         }}
