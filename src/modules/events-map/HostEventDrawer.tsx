@@ -42,6 +42,7 @@ export const HostEventDrawer: React.FC<HostEventDrawerProps> = ({
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<EventCategory>('coffee');
   const [locationName, setLocationName] = useState('');
+  const [address, setAddress] = useState('');
   const [neighborhoodZone, setNeighborhoodZone] = useState('Midtown • Tech Square');
   const [startDate, setStartDate] = useState(() => toDateInput(defaultStart()));
   const [startClock, setStartClock] = useState(() => toTimeInput(defaultStart()));
@@ -109,6 +110,7 @@ export const HostEventDrawer: React.FC<HostEventDrawerProps> = ({
       hostRole: currentUser.role,
       hostAvatarUrl: currentUser.avatarUrl,
       locationName: locationName.trim(),
+      ...(address.trim() ? { address: address.trim() } : {}),
       lat: zoneCoords.lat + (Math.random() - 0.5) * 0.003, // Slight jitter for unique pin position
       lng: zoneCoords.lng + (Math.random() - 0.5) * 0.003,
       neighborhoodZone,
@@ -241,6 +243,20 @@ export const HostEventDrawer: React.FC<HostEventDrawerProps> = ({
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-tp-muted mb-1">
+                Address <span className="normal-case font-normal text-tp-subtle">(for directions, optional)</span>
+              </label>
+              <input
+                type="text"
+                data-testid="event-address-input"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="e.g. 266 4th St NW, Atlanta, GA"
+                autoComplete="street-address"
+                className="w-full px-3 py-2 rounded-xl bg-tp-elevated border border-tp-line focus:border-[#B39051] text-tp-ink text-sm outline-none"
+              />
             </div>
           </div>
 

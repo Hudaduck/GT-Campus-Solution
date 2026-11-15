@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Clock, MapPin, Users, Share2, Check, X, Sparkles, Star, CalendarPlus } from 'lucide-react';
+import { Clock, MapPin, Users, Share2, Check, X, Sparkles, Star, CalendarPlus, Navigation } from 'lucide-react';
 import { ScoredEventItem } from './types';
 import { eventTimeLabel } from './eventTime';
 import { UserProfile } from '../../shared/contracts';
@@ -7,6 +7,7 @@ import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { Repository } from '../../shared/data/repository';
 import { getCategoryLabel } from '../../shared/ui/categoryIcons';
 import { avatarSrc } from '../../shared/ui/avatarSrc';
+import { eventDirectionsUrl } from '../../shared/maps';
 
 interface EventDetailDrawerProps {
   event: ScoredEventItem | null;
@@ -225,13 +226,25 @@ export const EventDetailDrawer: React.FC<EventDetailDrawerProps> = ({
               {formatDateTime(event.startTime)} – {formatDateTime(event.endTime)}
             </span>
           </div>
-          <div className="flex items-start gap-2.5">
+          <a
+            href={eventDirectionsUrl(event)}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="event-directions"
+            className="flex items-start gap-2.5 rounded-lg -mx-1 px-1 py-0.5 hover:bg-tp-elevated/60 transition group"
+          >
             <MapPin className="w-4 h-4 text-tp-accent flex-shrink-0 mt-0.5" />
-            <div>
-              <span className="font-semibold text-tp-ink">{event.locationName}</span>
-              <span className="text-tp-subtle block text-xs">{event.neighborhoodZone}</span>
-            </div>
-          </div>
+            <span className="min-w-0 flex-1">
+              <span className="font-semibold text-tp-ink underline decoration-[#B39051]/60 underline-offset-2 group-hover:decoration-[#B39051]">
+                {event.locationName}
+              </span>
+              <span className="text-tp-subtle block text-xs">{event.address || event.neighborhoodZone}</span>
+            </span>
+            <span className="shrink-0 flex items-center gap-1 text-xs font-bold text-tp-accent mt-0.5">
+              <Navigation className="w-3.5 h-3.5" />
+              Directions
+            </span>
+          </a>
         </div>
 
         {/* Description */}

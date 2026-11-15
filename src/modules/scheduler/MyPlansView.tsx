@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarDays, CalendarPlus, Coffee, Zap, MapPin, Clock, Download, Ticket, Map as MapIcon, Users, MessageCircle, Video } from 'lucide-react';
+import { CalendarDays, CalendarPlus, Coffee, Zap, MapPin, Clock, Download, Ticket, Map as MapIcon, Users, MessageCircle, Video, Star } from 'lucide-react';
 import { EventItem, MatchItem, CalendarMeetup, UserProfile } from '../../shared/contracts';
 import { Repository, USER_CHANGED_EVENT, isSamePerson } from '../../shared/data/repository';
 import { LayoutMode } from '../../shared/ui/layout';
@@ -8,6 +8,7 @@ import { SchedulerDrawer } from './SchedulerDrawer';
 import { getCategoryLabel } from '../../shared/ui/categoryIcons';
 import { ChatDrawer } from './ChatDrawer';
 import { avatarSrc } from '../../shared/ui/avatarSrc';
+import { directionsUrl, eventDirectionsUrl } from '../../shared/maps';
 
 interface MyPlansViewProps {
   onNavigateToRadar?: () => void;
@@ -24,7 +25,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
   const [events, setEvents] = useState<EventItem[]>([]);
   const [matches, setMatches] = useState<MatchItem[]>([]);
   const [meetups, setMeetups] = useState<CalendarMeetup[]>([]);
-  const [activeTab, setActiveTab] = useState<'all' | 'meetups' | 'events' | 'matches' | 'messages'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'meetups' | 'events' | 'hosting' | 'matches' | 'messages'>('all');
   const [rescheduleMeetup, setRescheduleMeetup] = useState<CalendarMeetup | null>(null);
   const [cancelArmedId, setCancelArmedId] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -152,6 +153,164 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
   const isDashboard = layout === 'web' && activeTab === 'all';
   // Inside a half-width dashboard column, a second split makes cards too narrow to read
   const cardGrid = isDashboard ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 md:grid-cols-2 gap-3';
+  const hostedEvents = events.filter((e) => e.hostId === currentUser.id);
+  const joinedEvents = events.filter((e) => e.hostId !== currentUser.id);
+
+  // Pop-up lists: ones you host and ones you joined share the same card
+  const renderEventSection = (kind: 'hosting' | 'going', list: EventItem[]) => (
+    <section data-testid={`plans-section-${kind}`} className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-tp-accent flex items-center gap-2">
+          {kind === 'hosting' ? <Star className="w-3.5 h-3.5" /> : <Ticket className="w-3.5 h-3.5" />}
+          <span>
+            {kind === 'hosting' ? "Pop-ups you're hosting" : "Pop-ups you're going to"} ({list.length})
+          </span>
+        </h3>
+      </div>
+
+      {list.length === 0 ? (
+        <div className="p-6 bg-tp-surface/80 rounded-2xl border border-dashed border-[#B39051]/35 text-center space-y-2">
+          <p className="text-sm text-tp-muted">
+            {kind === 'hosting' ? "You're not hosting any pop-ups yet." : "You haven't RSVP'd to any events yet."}
+          </p>
+          <p className="text-xs text-tp-subtle">
+            {kind === 'hosting'
+              ? 'Schedule one from the map with "Host a Pop-Up".'
+              : 'Explore Georgia Tech & Midtown pop-ups on the interactive map radar.'}
+          </p>
+          {onNavigateToMap && (
+            <button
+              onClick={onNavigateToMap}
+              className="mt-2 px-4 py-2 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition inline-flex items-center gap-1.5"
+            >
+              <MapIcon className="w-3.5 h-3.5" />
+              <span>Explore Map Radar</span>
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className={cardGrid}>
+          {list.map((event) => {
+            const googleCalUrl = generateGoogleCalendarUrl({
+              title: event.title,
+              description: `${event.description}\nHost: ${event.hostName}`,
+              locationName: event.locationName,
+              locationAddress: event.neighborhoodZone,
+              startTime: event.startTime,
+              durationMinutes: Math.round(
+                (new Date(event.endTime).getTime() - new Date(event.startTime).getTime()) / 60000
+              ) || 120,
+            });
+
+            return (
+              <div
+                key={event.id}
+                className="bg-tp-surface border border-[#B39051]/35 rounded-2xl p-4 shadow-md flex flex-col justify-between hover:border-[#B39051]/60 transition"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#051E39] tp-on-navy text-tp-accent border border-[#B39051]/30 inline-block mb-1">
+                        {getCategoryLabel(event.category)}
+                      </span>
+                      {event.hostId === currentUser.id && (
+                        <span
+                          data-testid="hosting-badge"
+                          className="ml-1.5 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-[#B39051] text-[#051E39] inline-block mb-1"
+                        >
+                          Hosting
+                        </span>
+                      )}
+                      <h4 className="font-bold text-tp-ink text-sm leading-snug line-clamp-2">
+                        {event.title}
+                      </h4>
+                    </div>
+                    <span className="text-xs text-tp-muted bg-tp-elevated px-2 py-1 rounded-lg shrink-0">
+                      <Users className="inline w-3 h-3 mr-1 -mt-0.5" />
+                    {event.attendees?.length || 1} / {event.maxAttendees}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-tp-muted mt-2 line-clamp-2">
+                    {event.description}
+                  </p>
+
+                  <div className="mt-3 bg-tp-elevated p-2.5 rounded-xl border border-[#B39051]/35 space-y-1 text-xs">
+                    <a
+                      href={eventDirectionsUrl(event)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="event-directions"
+                      className="flex items-start gap-1.5 text-tp-muted hover:text-tp-ink"
+                    >
+                      <MapPin className="w-3 h-3 shrink-0 mt-0.5" />
+                      <span className="min-w-0 flex-1">
+                        <span className="text-tp-ink font-semibold underline decoration-[#B39051]/60 underline-offset-2">
+                          {event.locationName}
+                        </span>
+                        <span className="text-tp-accent"> · {event.address || event.neighborhoodZone}</span>
+                      </span>
+                      <span className="shrink-0 text-tp-accent font-bold">Directions</span>
+                    </a>
+                    <div className="text-tp-accent font-semibold">
+                      <Clock className="inline w-3 h-3 mr-1 -mt-0.5" />
+                      {new Date(event.startTime).toLocaleString([], {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="mt-4 pt-3 border-t border-[#B39051]/35 flex items-center gap-2">
+                  <button
+                    onClick={() => handleDownloadEventIcs(event)}
+                    className="flex-1 py-1.5 px-2.5 rounded-lg border border-[#B39051]/50 bg-[#051E39] tp-on-navy text-tp-ink font-semibold text-xs hover:bg-tp-elevated transition text-center"
+                  >
+                    <Download className="inline w-3 h-3 mr-1 -mt-0.5" />.ics
+                  </button>
+                  <a
+                    href={googleCalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 py-1.5 px-2.5 rounded-lg bg-[#B39051] text-[#051E39] font-bold text-xs whitespace-nowrap hover:bg-[#8F713D] active:bg-[#8F713D] transition text-center"
+                  >
+                    <CalendarPlus className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />Google Calendar
+                  </a>
+                  {event.hostId === currentUser.id ? (
+                    <button
+                      data-testid="event-delete"
+                      onClick={() => handleDeleteEvent(event.id)}
+                      className={`text-xs px-2 py-1.5 rounded-lg font-semibold whitespace-nowrap transition ${
+                        cancelArmedId === `event:${event.id}`
+                          ? 'bg-red-500 text-white'
+                          : 'text-tp-subtle hover:text-red-400'
+                      }`}
+                    >
+                      {cancelArmedId === `event:${event.id}` ? 'Tap to delete' : 'Delete'}
+                    </button>
+                  ) : (
+                    <button
+                      data-testid="event-leave"
+                      onClick={() => handleCancelRsvp(event.id)}
+                      className="text-tp-subtle hover:text-red-400 text-xs px-2 py-1.5"
+                    >
+                      Leave
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+
 
   return (
     <div
@@ -170,7 +329,7 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
             <span>My Plans & Connections</span>
           </h2>
           <p className="text-xs text-tp-muted mt-0.5">
-            Confirmed pop-up RSVPs, 1-on-1 meetups (in person or online), and mutual Yellow Jacket matches.
+            Pop-ups you're hosting or going to, 1-on-1 meetups (in person or online), and mutual Yellow Jacket matches.
           </p>
         </div>
 
@@ -204,7 +363,18 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                 : 'text-tp-muted hover:text-tp-ink'
             }`}
           >
-            RSVPs ({events.length})
+            RSVPs ({joinedEvents.length})
+          </button>
+          <button
+            data-testid="plans-tab-hosting"
+            onClick={() => setActiveTab('hosting')}
+            className={`px-3 min-h-[36px] whitespace-nowrap rounded-lg text-xs font-semibold transition ${
+              activeTab === 'hosting'
+                ? 'bg-[#B39051] text-[#051E39]'
+                : 'text-tp-muted hover:text-tp-ink'
+            }`}
+          >
+            Hosting ({hostedEvents.length})
           </button>
           <button
             onClick={() => setActiveTab('matches')}
@@ -317,6 +487,17 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
                         >
                           Join meeting
                         </a>
+                      ) : meetup.format !== 'online' && meetup.locationAddress ? (
+                        <a
+                          href={directionsUrl(meetup.locationAddress)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-testid="meetup-directions"
+                          className="block text-[11px] text-tp-muted underline decoration-[#B39051]/60 underline-offset-2 hover:text-tp-ink pl-6"
+                        >
+                          {meetup.locationAddress}
+                          <span className="ml-1.5 no-underline text-tp-accent font-bold">Directions</span>
+                        </a>
                       ) : (
                         <p className="text-[11px] text-tp-muted pl-6">
                           {meetup.locationAddress}
@@ -401,144 +582,13 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
         </section>
       )}
 
-      {/* 2. Confirmed Event RSVPs Section */}
-      {(activeTab === 'all' || activeTab === 'events') && (
-        <section className={`space-y-3 ${isDashboard ? 'col-start-2 row-start-1 row-span-2' : ''}`}>
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-tp-accent flex items-center gap-2">
-              <Ticket className="w-3.5 h-3.5" />
-              <span>Confirmed Pop-Up Event RSVPs ({events.length})</span>
-            </h3>
-          </div>
-
-          {events.length === 0 ? (
-            <div className="p-6 bg-tp-surface/80 rounded-2xl border border-dashed border-[#B39051]/35 text-center space-y-2">
-              <p className="text-sm text-tp-muted">You haven't RSVP'd to any events yet.</p>
-              <p className="text-xs text-tp-subtle">
-                Explore Georgia Tech & Midtown pop-ups on the interactive map radar.
-              </p>
-              {onNavigateToMap && (
-                <button
-                  onClick={onNavigateToMap}
-                  className="mt-2 px-4 py-2 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition inline-flex items-center gap-1.5"
-                >
-                  <MapIcon className="w-3.5 h-3.5" />
-                  <span>Explore Map Radar</span>
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className={cardGrid}>
-              {events.map((event) => {
-                const googleCalUrl = generateGoogleCalendarUrl({
-                  title: event.title,
-                  description: `${event.description}\nHost: ${event.hostName}`,
-                  locationName: event.locationName,
-                  locationAddress: event.neighborhoodZone,
-                  startTime: event.startTime,
-                  durationMinutes: Math.round(
-                    (new Date(event.endTime).getTime() - new Date(event.startTime).getTime()) / 60000
-                  ) || 120,
-                });
-
-                return (
-                  <div
-                    key={event.id}
-                    className="bg-tp-surface border border-[#B39051]/35 rounded-2xl p-4 shadow-md flex flex-col justify-between hover:border-[#B39051]/60 transition"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#051E39] tp-on-navy text-tp-accent border border-[#B39051]/30 inline-block mb-1">
-                            {getCategoryLabel(event.category)}
-                          </span>
-                          {event.hostId === currentUser.id && (
-                            <span
-                              data-testid="hosting-badge"
-                              className="ml-1.5 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-[#B39051] text-[#051E39] inline-block mb-1"
-                            >
-                              Hosting
-                            </span>
-                          )}
-                          <h4 className="font-bold text-tp-ink text-sm leading-snug line-clamp-2">
-                            {event.title}
-                          </h4>
-                        </div>
-                        <span className="text-xs text-tp-muted bg-tp-elevated px-2 py-1 rounded-lg shrink-0">
-                          <Users className="inline w-3 h-3 mr-1 -mt-0.5" />
-                        {event.attendees?.length || 1} / {event.maxAttendees}
-                        </span>
-                      </div>
-
-                      <p className="text-xs text-tp-muted mt-2 line-clamp-2">
-                        {event.description}
-                      </p>
-
-                      <div className="mt-3 bg-tp-elevated p-2.5 rounded-xl border border-[#B39051]/35 space-y-1 text-xs">
-                        <div className="flex items-start gap-1.5 text-tp-muted">
-                          <MapPin className="w-3 h-3 shrink-0 mt-0.5" />
-                          <span className="min-w-0">
-                            <span className="text-tp-ink font-semibold">{event.locationName}</span>
-                            <span className="text-tp-accent"> · {event.neighborhoodZone}</span>
-                          </span>
-                        </div>
-                        <div className="text-tp-accent font-semibold">
-                          <Clock className="inline w-3 h-3 mr-1 -mt-0.5" />
-                          {new Date(event.startTime).toLocaleString([], {
-                            weekday: 'short',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                          })}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="mt-4 pt-3 border-t border-[#B39051]/35 flex items-center gap-2">
-                      <button
-                        onClick={() => handleDownloadEventIcs(event)}
-                        className="flex-1 py-1.5 px-2.5 rounded-lg border border-[#B39051]/50 bg-[#051E39] tp-on-navy text-tp-ink font-semibold text-xs hover:bg-tp-elevated transition text-center"
-                      >
-                        <Download className="inline w-3 h-3 mr-1 -mt-0.5" />.ics
-                      </button>
-                      <a
-                        href={googleCalUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 py-1.5 px-2.5 rounded-lg bg-[#B39051] text-[#051E39] font-bold text-xs whitespace-nowrap hover:bg-[#8F713D] active:bg-[#8F713D] transition text-center"
-                      >
-                        <CalendarPlus className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />Google Calendar
-                      </a>
-                      {event.hostId === currentUser.id ? (
-                        <button
-                          data-testid="event-delete"
-                          onClick={() => handleDeleteEvent(event.id)}
-                          className={`text-xs px-2 py-1.5 rounded-lg font-semibold whitespace-nowrap transition ${
-                            cancelArmedId === `event:${event.id}`
-                              ? 'bg-red-500 text-white'
-                              : 'text-tp-subtle hover:text-red-400'
-                          }`}
-                        >
-                          {cancelArmedId === `event:${event.id}` ? 'Tap to delete' : 'Delete'}
-                        </button>
-                      ) : (
-                        <button
-                          data-testid="event-leave"
-                          onClick={() => handleCancelRsvp(event.id)}
-                          className="text-tp-subtle hover:text-red-400 text-xs px-2 py-1.5"
-                        >
-                          Leave
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
+      {/* 2. Pop-ups: hosting + going */}
+      {(activeTab === 'all' || activeTab === 'events' || activeTab === 'hosting') && (
+        <div className={`space-y-6 ${isDashboard ? 'col-start-2 row-start-1 row-span-2' : ''}`}>
+          {(activeTab === 'hosting' || (activeTab === 'all' && hostedEvents.length > 0)) &&
+            renderEventSection('hosting', hostedEvents)}
+          {activeTab !== 'hosting' && renderEventSection('going', joinedEvents)}
+        </div>
       )}
 
       {/* Messages: conversations with unread dots */}

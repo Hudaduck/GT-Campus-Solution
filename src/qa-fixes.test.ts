@@ -237,7 +237,8 @@ describe('Demo readiness', () => {
     expect(Repository.getEvents().some((e) => e.attendees.includes('user_sarah_jenkins'))).toBe(false);
 
     render(React.createElement(MyPlansView, {}));
-    expect(screen.getByText(/^RSVPs \(2\)$/)).toBeDefined();
+    expect(screen.getByText(/^Hosting \(2\)$/)).toBeDefined();
+    expect(screen.getByText(/^RSVPs \(0\)$/)).toBeDefined();
 
     // Sarah (via her twin) hosts both, so "Leave" is refused and the pop-up stays hers...
     expect(Repository.getEvents().find((e) => e.id === 'event_fintech_alumni_dinner')!.hostId).toBe(INITIAL_CURRENT_USER.id);

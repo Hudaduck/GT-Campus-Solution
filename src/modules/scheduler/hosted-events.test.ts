@@ -72,3 +72,40 @@ describe('Hosting vs attending a pop-up', () => {
     expect(deleted).toBe(FINTECH);
   });
 });
+
+describe('Directions links and the Hosting tab', () => {
+  beforeEach(() => Repository.resetAllData());
+
+  it('event and meetup locations link to Google Maps directions', async () => {
+    const { eventDestination, directionsUrl } = await import('../../shared/maps');
+    // built-in pop-ups: exact coordinates
+    expect(eventDestination({ id: 'event_x', lat: 33.77, lng: -84.39, locationName: 'Tech Square' })).toBe('33.77,-84.39');
+    // user-hosted: the address they typed, else the place name in Atlanta (their pin is approximate)
+    expect(eventDestination({ id: 'event_user_1', lat: 0, lng: 0, locationName: 'CULC', address: '266 4th St NW' })).toBe('266 4th St NW');
+    expect(eventDestination({ id: 'event_user_1', lat: 0, lng: 0, locationName: 'CULC' })).toBe('CULC, Atlanta, GA');
+    expect(directionsUrl('266 4th St NW')).toBe('https://www.google.com/maps/dir/?api=1&destination=266%204th%20St%20NW');
+
+    render(React.createElement(MyPlansView, {}));
+    const link = screen.getAllByTestId('event-directions')[0] as HTMLAnchorElement;
+    expect(link.href).toMatch(/^https:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=/);
+    expect(link.target).toBe('_blank');
+  });
+
+  it('Hosting tab lists only the pop-ups you host; RSVPs lists the ones you joined', () => {
+    const joinable = Repository.getEvents().find(
+      (e) => e.hostId !== INITIAL_CURRENT_USER.id && !e.attendees.includes(INITIAL_CURRENT_USER.id) && e.attendees.length < e.maxAttendees
+    )!;
+    Repository.rsvpEvent(joinable.id, INITIAL_CURRENT_USER.id);
+    render(React.createElement(MyPlansView, {}));
+
+    fireEvent.click(screen.getByTestId('plans-tab-hosting'));
+    expect(screen.getByTestId('plans-section-hosting')).toBeDefined();
+    expect(screen.queryByTestId('plans-section-going')).toBeNull();
+    expect(screen.queryByText(joinable.title)).toBeNull();
+    expect(screen.getByText('Fintech & Quant Fireside Chat @ Tech Square')).toBeDefined();
+
+    fireEvent.click(screen.getByText(/^RSVPs \(1\)$/));
+    expect(screen.getByText(joinable.title)).toBeDefined();
+    expect(screen.queryByTestId('plans-section-hosting')).toBeNull();
+  });
+});

@@ -84,6 +84,7 @@ export interface EventItem {
   hostRole: UserRole;
   hostAvatarUrl?: string;
   locationName: string;
+  address?: string; // street address for directions (user-hosted pop-ups; seeds use lat/lng)
   lat: number;
   lng: number;
   neighborhoodZone: string;
