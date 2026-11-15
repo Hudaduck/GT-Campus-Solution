@@ -439,7 +439,7 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
     {
       id: 'event_gt_ai_founders_coffee',
       title: 'Yellow Jacket AI Founders & Builders Pour-Over',
-      description: 'Casual Sunday morning coffee meetup at Dancing Goats. Demos of local LLM pipelines, autonomous agents, and startup war stories.',
+      description: 'Casual pour-over meetup at Dancing Goats. Demos of local LLM pipelines, autonomous agents, and startup war stories.',
       hostId: 'user_alex_chen',
       hostName: 'Alex Chen',
       hostRole: 'student',
@@ -460,7 +460,7 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
     {
       id: 'event_stone_summit_bouldering',
       title: 'Stone Summit Midtown Bouldering Crew',
-      description: 'V3 to V7 project session! Warm up at 6 PM followed by tacos at Bartaco. Open to beginners and seasoned crushers alike.',
+      description: 'V3 to V7 project session! Warm up together, then tacos at Bartaco after. Open to beginners and seasoned crushers alike.',
       hostId: 'user_marcus_vance',
       hostName: 'Marcus Vance',
       hostRole: 'student',
@@ -501,7 +501,7 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
     },
     {
       id: 'event_beltline_sunset_run',
-      title: 'BeltLine Eastside Trail 5K Sunset Jog',
+      title: 'BeltLine Eastside Trail 5K Social Run',
       description: 'Meet at Piedmont Park Active Oval, easy conversational pace (9:00/mi) along the BeltLine down to Krog Street Market for popsicles.',
       hostId: 'user_sarah_jenkins',
       hostName: 'Sarah Jenkins',
@@ -543,7 +543,7 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
     },
     {
       id: 'event_culc_study_jam',
-      title: 'Clough (CULC) 3rd Floor Late-Night Hack & Study',
+      title: 'Clough (CULC) 3rd Floor Hack & Study Jam',
       description: 'Whiteboard cram jam for upcoming systems & algorithm finals. Energy drinks and pizza slices provided.',
       hostId: 'user_liam_wright',
       hostName: 'Liam Wright',
@@ -585,7 +585,7 @@ export function buildInitialEvents(now: number = Date.now()): EventItem[] {
     },
     {
       id: 'event_scheller_boardgame_social',
-      title: 'Tech Square Board Game & Strategy Night',
+      title: 'Tech Square Board Game & Strategy Meetup',
       description: 'Settlers of Catan, Terraforming Mars, and Wingspan. Great way to decompress and meet fellow Yellow Jackets in a relaxed environment.',
       hostId: 'user_priya_sharma',
       hostName: 'Priya Sharma',
@@ -1267,7 +1267,30 @@ export class Repository {
         localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(validEvents));
       } catch {}
     }
-    return validEvents;
+    return this.asCurrentUser(validEvents);
+  }
+
+  /**
+   * Demo personas have seed "twins" (same person, different id): seed pop-ups list e.g.
+   * 'user_sarah_jenkins' while the signed-in Sarah is 'current_user_sarah_18'. Read the twin's
+   * RSVPs/hosting as the signed-in user's, so "Going", Leave, counts and My Plans all agree.
+   */
+  private static asCurrentUser(events: EventItem[]): EventItem[] {
+    const me = this.getCurrentUser();
+    const directory = this.readStoredProfiles();
+    const twins = new Set(
+      (directory.length ? directory : INITIAL_PROFILES).filter((p) => p.id !== me.id && isSamePerson(p, me)).map((p) => p.id)
+    );
+    if (twins.size === 0) return events;
+    return events.map((e) => {
+      const touches = twins.has(e.hostId) || e.attendees.some((id) => twins.has(id));
+      if (!touches) return e;
+      return {
+        ...e,
+        hostId: twins.has(e.hostId) ? me.id : e.hostId,
+        attendees: [...new Set(e.attendees.map((id) => (twins.has(id) ? me.id : id)))],
+      };
+    });
   }
 
   /**

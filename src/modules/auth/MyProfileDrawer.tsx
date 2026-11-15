@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Briefcase, Target, Tag, Check, Plus, Trash2, GraduationCap, MapPin, Moon, Sun } from 'lucide-react';
 import { useBrand } from '../../shared/config/brandConfig';
+import { ResetDemoButton } from '../../shared/ui/ResetDemoButton';
 import { useAuth } from './AuthContext';
 import { WorkExperience, MeetupIntent, LocationPreference } from '../../shared/contracts';
 import { getLocationPreference } from '../../shared/location';
@@ -481,6 +482,12 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Demo: back to a fresh start between run-throughs */}
+          <div className="flex items-center justify-between gap-3 pt-3 border-t border-tp-line">
+            <p className="text-[11px] text-tp-subtle">Restore the default demo profiles, pop-ups and plans.</p>
+            <ResetDemoButton compact />
           </div>
 
           {/* Save Action Button */}

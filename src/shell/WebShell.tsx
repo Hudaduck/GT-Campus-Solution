@@ -5,6 +5,7 @@ import { BrandMark } from '../shared/ui/BrandMark';
 import { useAuth, DemoRoleSwitcher } from '../modules/auth';
 import { ModuleOutlet, AppTab } from './ModuleOutlet';
 import { ViewModeToggle } from './ViewModeToggle';
+import { ResetDemoButton } from '../shared/ui/ResetDemoButton';
 import { PresenterView } from './useViewMode';
 
 interface WebShellProps {
@@ -78,6 +79,7 @@ export const WebShell: React.FC<WebShellProps> = ({
         <div className="px-3 pb-5 space-y-2 border-t border-[#B39051]/35 pt-4">
           <p className="px-1 text-[10px] font-bold uppercase tracking-wider text-tp-accent">Live demo view</p>
           <ViewModeToggle value={presenterView} onChange={onPresenterViewChange} className="w-full justify-between" />
+          <ResetDemoButton className="w-full" compact />
 
           <button
             type="button"

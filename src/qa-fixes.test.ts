@@ -16,6 +16,7 @@ import { SwipeRadarView } from './modules/swipe-radar/SwipeRadarView';
 import { MyPlansView } from './modules/scheduler/MyPlansView';
 import { SchedulerDrawer } from './modules/scheduler/SchedulerDrawer';
 import { AuthProvider, MyProfileDrawer } from './modules/auth';
+import { ResetDemoButton } from './shared/ui/ResetDemoButton';
 
 const alex = INITIAL_PROFILES[0]; // user_alex_chen, the seed twin of DEMO_STUDENT_USER
 const marcus = INITIAL_PROFILES.find((p) => p.id === 'user_marcus_vance')!;
@@ -205,5 +206,48 @@ describe('QA: theme switch reachable on phones (My Profile)', () => {
     expect(document.documentElement.classList.contains('light')).toBe(true);
     fireEvent.click(screen.getByTestId('theme-dark'));
     expect(document.documentElement.classList.contains('dark')).toBe(true);
+  });
+});
+
+describe('Demo readiness', () => {
+  beforeEach(() => Repository.resetAllData());
+
+  it("a fresh demo shows Sarah's seed RSVPs in My Plans, marked Going, and Leave really leaves", () => {
+    // Seeds RSVP Sarah's directory twin (user_sarah_jenkins); the signed-in Sarah should own them
+    const mine = Repository.getEvents().filter((e) => e.attendees.includes(INITIAL_CURRENT_USER.id));
+    expect(mine.map((e) => e.id).sort()).toEqual(['event_beltline_sunset_run', 'event_fintech_alumni_dinner']);
+    expect(Repository.getEvents().some((e) => e.attendees.includes('user_sarah_jenkins'))).toBe(false);
+
+    render(React.createElement(MyPlansView, {}));
+    expect(screen.getByText(/^RSVPs \(2\)$/)).toBeDefined();
+
+    const before = Repository.getEvents().find((e) => e.id === 'event_fintech_alumni_dinner')!.attendees.length;
+    Repository.rsvpEvent('event_fintech_alumni_dinner', INITIAL_CURRENT_USER.id); // Leave
+    const after = Repository.getEvents().find((e) => e.id === 'event_fintech_alumni_dinner')!;
+    expect(after.attendees).not.toContain(INITIAL_CURRENT_USER.id);
+    expect(after.attendees.length).toBe(before - 1);
+  });
+
+  it('Reset demo needs a second tap, then restores the defaults', () => {
+    const reload = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...original, reload } });
+    try {
+      Repository.updateCurrentUser({ name: 'Somebody Else' });
+      Repository.saveMatch(match('m1', INITIAL_CURRENT_USER.id));
+      render(React.createElement(ResetDemoButton));
+      const btn = screen.getByTestId('reset-demo-button');
+
+      fireEvent.click(btn);
+      expect(btn.textContent).toContain('Tap again to reset');
+      expect(Repository.getCurrentUser().name).toBe('Somebody Else'); // not yet
+
+      fireEvent.click(btn);
+      expect(Repository.getCurrentUser().name).toBe(INITIAL_CURRENT_USER.name);
+      expect(Repository.getMatches()).toEqual([]);
+      expect(reload).toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: original });
+    }
   });
 });

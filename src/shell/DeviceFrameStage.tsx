@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useBrand } from '../shared/config/brandConfig';
 import { BrandMark } from '../shared/ui/BrandMark';
 import { ViewModeToggle } from './ViewModeToggle';
+import { ResetDemoButton } from '../shared/ui/ResetDemoButton';
 import { PresenterView, PHONE_FRAME_QUERY_PARAM } from './useViewMode';
 import { AppTab } from './ModuleOutlet';
 
@@ -57,7 +58,10 @@ export const DeviceFrameStage: React.FC<DeviceFrameStageProps> = ({
             <p className="text-[11px] text-tp-muted">{brand.tagline}</p>
           </div>
         </div>
-        <ViewModeToggle value={presenterView} onChange={onPresenterViewChange} />
+        <div className="flex items-center gap-2">
+          <ResetDemoButton />
+          <ViewModeToggle value={presenterView} onChange={onPresenterViewChange} />
+        </div>
       </header>
 
       <div className="flex-1 min-h-0 flex items-center justify-center">

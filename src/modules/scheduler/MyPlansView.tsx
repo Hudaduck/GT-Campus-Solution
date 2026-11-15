@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CalendarDays, Coffee, Zap, MapPin, Clock, Download, Ticket, Map as MapIcon, Users, MessageCircle, Video } from 'lucide-react';
 import { EventItem, MatchItem, CalendarMeetup, UserProfile } from '../../shared/contracts';
-import { Repository, USER_CHANGED_EVENT } from '../../shared/data/repository';
+import { Repository, USER_CHANGED_EVENT, isSamePerson } from '../../shared/data/repository';
 import { LayoutMode } from '../../shared/ui/layout';
 import { generateIcsFile, generateGoogleCalendarUrl, downloadIcsFile } from './calendarUtils';
 import { SchedulerDrawer } from './SchedulerDrawer';
@@ -36,8 +36,10 @@ export const MyPlansView: React.FC<MyPlansViewProps> = ({
     setCurrentUser(user);
     const allEvents = Repository.getEvents();
     // Filter events where user is attendee or host
+    // "Me" includes my demo seed twin (same person, different id), see isSamePerson()
+    const myIds = new Set([user.id, ...Repository.getProfiles().filter((p) => isSamePerson(p, user)).map((p) => p.id)]);
     const myEvents = allEvents.filter(
-      (e) => e.attendees?.includes(user.id) || e.hostId === user.id
+      (e) => myIds.has(e.hostId) || (e.attendees ?? []).some((id) => myIds.has(id))
     );
     setEvents(myEvents);
     // Only this viewer's own matches and meetups (the demo has two personas sharing storage)
