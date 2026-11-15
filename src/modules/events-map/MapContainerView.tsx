@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { getCategoryIcon } from '../../shared/ui/categoryIcons';
 import { iconToSvgMarkup } from '../../shared/ui/iconMarkup';
-import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, Pane, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { ScoredEventItem } from './types';
 import { UserProfile } from '../../shared/contracts';
+import { radiusLabel } from '../../shared/location';
 import { Sparkles, MapPin, Navigation, Star } from 'lucide-react';
 
 interface MapContainerViewProps {
@@ -60,6 +61,20 @@ export function createGTMarkerIcon(event: ScoredEventItem): L.DivIcon {
 }
 
 const METERS_PER_MILE = 1609.34;
+const MILES_PER_DEGREE_LAT = 69.05;
+
+// "5 mi" tag pinned to the top of the radius ring, readable at any zoom
+const radiusLabelPosition = ([lat, lng]: [number, number], radiusMiles: number): [number, number] => [
+  lat + radiusMiles / MILES_PER_DEGREE_LAT,
+  lng,
+];
+const radiusLabelIcon = (radiusMiles: number) =>
+  L.divIcon({
+    className: 'tp-radius-label',
+    html: `<span style="display:inline-block;transform:translate(-50%,-50%);white-space:nowrap;padding:2px 8px;border-radius:9999px;background:#051E39;color:#B39051;border:1.5px solid #B39051;font:800 11px/1.4 system-ui,sans-serif;box-shadow:0 2px 6px rgba(0,0,0,.35);">${radiusLabel(radiusMiles)}</span>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
 
 // Keeps the view on the location preference: fits the radius circle (or centers for "Anywhere")
 // whenever the area or radius changes, plus a button to snap back to it.
@@ -155,13 +170,17 @@ export const MapContainerView: React.FC<MapContainerViewProps> = ({
 
         <MapViewController center={center} zoom={zoom} radiusMiles={radiusMiles} />
 
-        {/* Location preference: your area + how far you'll go */}
+        {/* Location preference, split across layers so it reads at any zoom:
+            - tinted fill + center dot BELOW the event markers (default overlay pane), so they stay clean
+            - ring outline ABOVE the markers: they're a fixed size and would bury it when zoomed out
+            - "5 mi" label above the ring
+            The upper panes ignore pointer events, so markers underneath stay clickable. */}
         {radiusMiles !== null && (
           <Circle
             center={center}
             radius={radiusMiles * METERS_PER_MILE}
             interactive={false}
-            pathOptions={{ color: '#B39051', weight: 2, dashArray: '6 6', fillColor: '#B39051', fillOpacity: 0.06 }}
+            pathOptions={{ stroke: false, fillColor: '#B39051', fillOpacity: 0.1 }}
           />
         )}
         <CircleMarker
@@ -170,6 +189,26 @@ export const MapContainerView: React.FC<MapContainerViewProps> = ({
           interactive={false}
           pathOptions={{ color: '#051E39', weight: 2, fillColor: '#B39051', fillOpacity: 1 }}
         />
+        {radiusMiles !== null && (
+          <>
+            <Pane name="radius-ring" style={{ zIndex: 650, pointerEvents: 'none' }}>
+              <Circle
+                center={center}
+                radius={radiusMiles * METERS_PER_MILE}
+                interactive={false}
+                pathOptions={{ color: '#B39051', weight: 3, opacity: 0.95, dashArray: '8 6', fill: false }}
+              />
+            </Pane>
+            <Pane name="radius-label" style={{ zIndex: 660, pointerEvents: 'none' }}>
+              <Marker
+                position={radiusLabelPosition(center, radiusMiles)}
+                icon={radiusLabelIcon(radiusMiles)}
+                interactive={false}
+                keyboard={false}
+              />
+            </Pane>
+          </>
+        )}
 
         {events.map((event) => {
           const icon = eventIcons.get(event.id);
