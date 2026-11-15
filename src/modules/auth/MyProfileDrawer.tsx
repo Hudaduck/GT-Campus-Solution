@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, Briefcase, Target, Tag, Check, Plus, Trash2, GraduationCap } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { WorkExperience, MeetupIntent } from '../../shared/contracts';
-import { POPULAR_HOBBIES } from '../../shared/data/repository';
+import { HOBBY_SUGGESTIONS, Repository } from '../../shared/data/repository';
+import { HobbyCombobox } from '../../shared/ui/HobbyCombobox';
 import { SheetDragHandle } from '../../shared/ui/SheetDragHandle';
 import { IntentPicker } from '../../shared/ui/IntentPicker';
 import { LinkedInImportButton } from './LinkedInImportModal';
@@ -54,6 +55,9 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
 
   if (!isOpen) return null;
 
+  // Curated list + what people on the radar already like (picking a shared one helps matching)
+  const hobbySuggestions = [...HOBBY_SUGGESTIONS, ...Repository.getProfiles().flatMap((p) => p.hobbies)];
+
   const handleAddWork = () => {
     if (!newCompany.trim() || !newRole.trim()) return;
     setWorkHistory([
@@ -98,15 +102,6 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
     setTargetRoles(targetRoles.filter((r) => r !== role));
   };
 
-  const toggleHobby = (hobby: string) => {
-    if (hobbies.includes(hobby)) {
-      setHobbies(hobbies.filter((h) => h !== hobby));
-    } else {
-      if (hobbies.length < 5) {
-        setHobbies([...hobbies, hobby]);
-      }
-    }
-  };
 
   const handleSave = () => {
     updateProfile({
@@ -435,28 +430,7 @@ export const MyProfileDrawer: React.FC<MyProfileDrawerProps> = ({ isOpen, onClos
               <span className="text-[11px] text-tp-subtle">{hobbies.length}/5 selected</span>
             </h3>
 
-            <div className="flex flex-wrap gap-1.5">
-              {Array.from(
-                new Set([...hobbies, ...POPULAR_HOBBIES.filter((p) => !hobbies.some((h) => h.toLowerCase() === p.toLowerCase()))])
-              ).map((hobby) => {
-                const isSelected = hobbies.includes(hobby);
-                return (
-                  <button
-                    key={hobby}
-                    type="button"
-                    onClick={() => toggleHobby(hobby)}
-                    className={`text-xs px-3 py-1.5 rounded-xl font-medium transition ${
-                      isSelected
-                        ? 'bg-[#B39051] text-[#051E39] font-black shadow-md ring-1 ring-[#B39051]'
-                        : 'bg-tp-elevated text-tp-muted border border-[#B39051]/35 hover:text-tp-ink'
-                    }`}
-                  >
-                    {isSelected && <Check className="inline w-3 h-3 mr-1 -mt-0.5" />}
-                    {hobby}
-                  </button>
-                );
-              })}
-            </div>
+            <HobbyCombobox value={hobbies} onChange={setHobbies} suggestions={hobbySuggestions} max={5} />
           </div>
 
           {/* Save Action Button */}

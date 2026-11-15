@@ -43,7 +43,11 @@ describe('My Profile drawer (career profile editing)', () => {
     fireEvent.change(roleInput, { target: { value: 'APM / Product Manager' } });
     fireEvent.keyDown(roleInput, { key: 'Enter' });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Hiking' }));
+    // Hobbies: type to search, then pick from the dropdown
+    const hobbyInput = screen.getByRole('combobox', { name: 'Add a hobby' });
+    fireEvent.focus(hobbyInput);
+    fireEvent.change(hobbyInput, { target: { value: 'hik' } });
+    fireEvent.mouseDown(screen.getByRole('option', { name: 'Hiking' }));
     fireEvent.click(screen.getByTestId('save-profile-button'));
 
     const saved = Repository.getCurrentUser();
