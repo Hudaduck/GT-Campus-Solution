@@ -358,7 +358,11 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
       {/* RADAR DECK VIEW */}
       {activeDeck === 'radar' && (
         <>
-          <div data-testid="deck-heading-radar" className="shrink-0 px-1 [@media(max-height:700px)]:hidden md:[@media(max-height:700px)]:block">
+          <div
+            data-testid="deck-heading-radar"
+            // phone: the deck tab already says "One-on-One Radar (n)", so give that space to the photo
+            className={`shrink-0 px-1 ${isWeb ? '' : 'hidden'}`}
+          >
             <h3 className="text-sm font-black text-tp-ink">One-on-One Radar</h3>
             <p className="text-[11px] text-tp-muted">
               {currentCandidate
@@ -458,12 +462,17 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                 >
 
                   {/* Photo with name, class / major and current role */}
-                  <div className={`relative w-full bg-[#051E39] tp-on-navy ${isWeb ? 'h-80' : 'flex-1 min-h-[140px]'}`}>
+                  <div className={`relative w-full bg-[#051E39] tp-on-navy ${
+                      isWeb
+                        ? // web: grow with the window so Pass / Connect stay on screen
+                          'h-[clamp(240px,calc(100dvh-640px),380px)]'
+                        : 'flex-1 min-h-[160px]'
+                    }`}>
                     <img
                       src={currentCandidate.avatarUrl}
                       alt={currentCandidate.name}
                       draggable={false}
-                      className="absolute inset-0 w-full h-full object-cover"
+                      className="absolute inset-0 w-full h-full object-cover object-[50%_28%]"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#051E39] via-[#051E39]/10 to-transparent" />
 
@@ -527,7 +536,10 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                         {describeMutualIntent(currentCandidate.mutualIntents[0], currentCandidate.name.split(' ')[0])}
                       </p>
                     )}
-                    <div className="flex flex-wrap gap-1.5 max-h-[60px] overflow-hidden" data-testid="swipe-overlap-badges">
+                    <div
+                      className={`flex flex-wrap gap-1.5 overflow-hidden ${isWeb ? 'max-h-[60px]' : 'max-h-[26px]'}`}
+                      data-testid="swipe-overlap-badges"
+                    >
                       {cardCompanyBadges.map((badge) => (
                         <span
                           key={badge.label}
