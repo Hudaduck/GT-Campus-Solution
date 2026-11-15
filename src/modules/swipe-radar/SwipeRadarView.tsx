@@ -78,13 +78,10 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
 
   // TTL Toggle Modal / state
   const [showTtlModal, setShowTtlModal] = useState<boolean>(false);
-  // "Passed on Alex · Undo" for a few seconds after each Pass
-  const [lastPass, setLastPass] = useState<{ index: number; name: string } | null>(null);
-  useEffect(() => {
-    if (!lastPass) return;
-    const t = window.setTimeout(() => setLastPass(null), 5000);
-    return () => window.clearTimeout(t);
-  }, [lastPass]);
+  // People you Passed on this session; once the deck runs out you can review just them
+  const [skippedIds, setSkippedIds] = useState<string[]>([]);
+  // While reviewing, the deck is limited to this snapshot of skipped people (null = full deck)
+  const [reviewIds, setReviewIds] = useState<string[] | null>(null);
 
   // Match Modal state
   const [matchedProfile, setMatchedProfile] = useState<UserProfile | null>(null);
@@ -126,7 +123,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
   const locationPref = useMemo(() => getLocationPreference(currentUser), [currentUser]);
   const changeLocation = (pref: LocationPreference) => {
     setCurrentUser(Repository.updateCurrentUser({ locationPreference: pref }));
-    setCurrentIndex(0);
+    restartDeck();
   };
   const nextWiderRadius = RADIUS_OPTIONS[RADIUS_OPTIONS.indexOf(locationPref.radiusMiles) + 1];
 
@@ -147,8 +144,28 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
       : [...candidates].sort((a, b) => Number(isIntentCompatible(currentUser, b)) - Number(isIntentCompatible(currentUser, a)));
   }, [profiles, intentFilter, roleFilter, currentUser, locationPref]);
 
+  // The deck being shown: everyone who fits, or only the skipped people while reviewing them
+  const deck = useMemo(
+    () => (reviewIds ? filteredProfiles.filter((p) => reviewIds.includes(p.id)) : filteredProfiles),
+    [filteredProfiles, reviewIds]
+  );
+  const skippedInDeck = filteredProfiles.filter((p) => skippedIds.includes(p.id));
+
+  // Filters / location changed: start over with the full deck
+  function restartDeck() {
+    setReviewIds(null);
+    setSkippedIds([]);
+    setCurrentIndex(0);
+  }
+
+  const reviewSkipped = () => {
+    setReviewIds(skippedInDeck.map((p) => p.id));
+    setSkippedIds([]);
+    setCurrentIndex(0);
+  };
+
   // Current candidate card
-  const currentCandidate = filteredProfiles[currentIndex] || null;
+  const currentCandidate = deck[currentIndex] || null;
   const sharedHobbies = currentCandidate?.sharedHobbies ?? [];
   const companyBadges = (currentCandidate?.careerBadges ?? []).filter(
     (b) => b.kind === 'works-at' || b.kind === 'ex-company'
@@ -159,18 +176,10 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
 
   // Handle Swipe Actions
   const handlePass = () => {
-    if (currentIndex < filteredProfiles.length) {
-      const passed = filteredProfiles[currentIndex];
-      if (passed) setLastPass({ index: currentIndex, name: passed.name.split(' ')[0] });
-      setCurrentIndex((prev) => prev + 1);
-    }
-  };
-
-  // Undo the last Pass: bring that person back to the top of the deck
-  const undoPass = () => {
-    if (!lastPass) return;
-    setCurrentIndex(lastPass.index);
-    setLastPass(null);
+    const passed = deck[currentIndex];
+    if (!passed) return;
+    setSkippedIds((ids) => (ids.includes(passed.id) ? ids : [...ids, passed.id]));
+    setCurrentIndex((prev) => prev + 1);
   };
 
   const handleConnect = (candidate: UserProfile, _isSuper = false) => {
@@ -197,7 +206,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
     setMatchedProfile(candidate);
     setShowMatchModal(true);
 
-    if (currentIndex < filteredProfiles.length) {
+    if (currentIndex < deck.length) {
       setCurrentIndex((prev) => prev + 1);
     }
   };
@@ -367,7 +376,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
             <h3 className="text-sm font-black text-tp-ink">One-on-One Radar</h3>
             <p className="text-[11px] text-tp-muted">
               {currentCandidate
-                ? `Profile ${currentIndex + 1} of ${filteredProfiles.length}`
+                ? `${reviewIds ? 'Skipped profile' : 'Profile'} ${currentIndex + 1} of ${deck.length}`
                 : 'Meet Yellow Jackets who are open to meet'}
             </p>
           </div>
@@ -386,7 +395,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                 value={intentFilter}
                 onChange={(e) => {
                   setIntentFilter(e.target.value as IntentFilter);
-                  setCurrentIndex(0);
+                  restartDeck();
                 }}
                 className={selectClass}
               >
@@ -409,7 +418,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                 value={roleFilter}
                 onChange={(e) => {
                   setRoleFilter(e.target.value as 'all' | 'student' | 'alumni');
-                  setCurrentIndex(0);
+                  restartDeck();
                 }}
                 className={selectClass}
               >
@@ -420,20 +429,6 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
               <ChevronDown aria-hidden="true" className="w-4 h-4 shrink-0 pointer-events-none" />
             </label>
           </div>
-
-          {/* Undo the last Pass (a mis-tap shouldn't lose someone) */}
-          {lastPass && (
-            <div
-              role="status"
-              data-testid="undo-pass"
-              className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#051E39] tp-on-navy border border-[#B39051]/60 text-xs"
-            >
-              <span className="text-tp-ink">Passed on {lastPass.name}</span>
-              <button type="button" onClick={undoPass} className="font-bold text-tp-accent underline">
-                Undo
-              </button>
-            </div>
-          )}
 
           {/* Small deck? Say why (intents / radius); widening is in the dropdown + location chip above */}
           {filteredProfiles.length > 0 && filteredProfiles.length < 5 && (intentFilter === 'for-you' || locationPref.radiusMiles !== null) && (
@@ -449,7 +444,7 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
             {currentCandidate ? (
               <div className={isWeb ? 'w-full relative' : 'relative flex-1 min-h-0 flex flex-col'}>
                 {/* Visual Stack Shadow Behind */}
-                {filteredProfiles[currentIndex + 1] && (
+                {deck[currentIndex + 1] && (
                   <div className="absolute inset-x-2 top-2 bottom-0 bg-tp-surface/40 rounded-3xl border border-[#B39051]/35 -z-10 transform scale-[0.96] translate-y-2 pointer-events-none" />
                 )}
 
@@ -625,12 +620,18 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-tp-ink">
-                    {filteredProfiles.length === 0 ? 'No one here yet' : "You're All Caught Up!"}
+                    {filteredProfiles.length === 0
+                      ? 'No one here yet'
+                      : skippedInDeck.length > 0
+                        ? "You've seen everyone"
+                        : "You're All Caught Up!"}
                   </h3>
                   <p className="text-xs text-tp-muted mt-1 max-w-xs mx-auto">
                     {filteredProfiles.length === 0
                       ? `No Yellow Jackets match within ${radiusLabel(locationPref.radiusMiles)} of ${locationPref.label}.`
-                      : "You've reviewed all available Yellow Jackets in your radar for now."}
+                      : skippedInDeck.length > 0
+                        ? `Want another look at the ${skippedInDeck.length === 1 ? 'person' : `${skippedInDeck.length} people`} you skipped?`
+                        : "You've reviewed all available Yellow Jackets in your radar for now."}
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 pt-2 max-w-xs mx-auto">
@@ -643,13 +644,16 @@ export const SwipeRadarView: React.FC<SwipeRadarViewProps> = ({
                       Widen to {radiusLabel(nextWiderRadius ?? null)}
                     </button>
                   )}
-                  <button
-                    onClick={() => setCurrentIndex(0)}
-                    className="py-2.5 px-4 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition"
-                  >
-                    <RotateCcw className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
-                    Review Profiles Again
-                  </button>
+                  {skippedInDeck.length > 0 && (
+                    <button
+                      data-testid="review-skipped"
+                      onClick={reviewSkipped}
+                      className="py-2.5 px-4 rounded-xl bg-[#B39051] text-[#051E39] font-bold text-xs hover:bg-[#8F713D] active:bg-[#8F713D] transition"
+                    >
+                      <RotateCcw className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
+                      Review skipped profiles ({skippedInDeck.length})
+                    </button>
+                  )}
                   {onNavigateToPlans && (
                     <button
                       onClick={onNavigateToPlans}

@@ -1,4 +1,4 @@
-// Booked meetup in chat (reschedule / cancel), My Plans inbox + unread, Undo after Pass
+// Booked meetup in chat (reschedule / cancel), My Plans inbox + unread, reviewing skipped profiles
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import React from 'react';
@@ -107,17 +107,43 @@ describe('My Plans: cancel needs confirming, Reschedule button, Messages inbox',
   });
 });
 
-describe('Undo after Pass', () => {
+describe('Reviewing skipped profiles at the end of the deck', () => {
   beforeEach(() => Repository.resetAllData());
 
-  it('brings the passed person back', () => {
+  it('has no undo bar, and offers only the skipped people once everyone has been seen', () => {
     render(React.createElement(SwipeRadarView, {}));
+    const total = Number(screen.getByText(/Profile 1 of/).textContent!.match(/of (\d+)/)![1]);
+    expect(total).toBeGreaterThan(1);
+
+    // Pass on the first person (Alex), connect with everyone else
     expect(screen.getByText('Alex Chen')).toBeDefined();
     fireEvent.click(screen.getByTitle('Pass'));
-    expect(screen.queryByText('Alex Chen')).toBeNull();
-    expect(screen.getByTestId('undo-pass').textContent).toContain('Passed on Alex');
-    fireEvent.click(screen.getByText('Undo'));
+    expect(screen.queryByText('Undo')).toBeNull();
+    for (let i = 1; i < total; i++) {
+      fireEvent.click(screen.getByTitle('Connect & Meet'));
+      fireEvent.click(screen.getByText('Keep Browsing', { selector: 'button' }));
+    }
+
+    const review = screen.getByTestId('review-skipped');
+    expect(review.textContent).toContain('Review skipped profiles (1)');
+    fireEvent.click(review);
+
     expect(screen.getByText('Alex Chen')).toBeDefined();
-    expect(screen.queryByTestId('undo-pass')).toBeNull();
+    expect(screen.getByText(/Skipped profile 1 of 1/)).toBeDefined();
+
+    // Pass again: back at the end, still offered
+    fireEvent.click(screen.getByTitle('Pass'));
+    expect(screen.getByTestId('review-skipped').textContent).toContain('(1)');
+  });
+
+  it('shows "All Caught Up" with no review button when nobody was skipped', () => {
+    render(React.createElement(SwipeRadarView, {}));
+    const total = Number(screen.getByText(/Profile 1 of/).textContent!.match(/of (\d+)/)![1]);
+    for (let i = 0; i < total; i++) {
+      fireEvent.click(screen.getByTitle('Connect & Meet'));
+      fireEvent.click(screen.getByText('Keep Browsing', { selector: 'button' }));
+    }
+    expect(screen.getByText("You're All Caught Up!")).toBeDefined();
+    expect(screen.queryByTestId('review-skipped')).toBeNull();
   });
 });
